@@ -54,11 +54,13 @@ describe('searchEntities', () => {
   })
 
   it('검색어를 이스케이프해서 질의에 넣는다', async () => {
-    const spy = vi.fn(async () => new Response(JSON.stringify(bindings), { status: 200 }))
+    const spy = vi.fn(
+      async (_url: string, _init: RequestInit) =>
+        new Response(JSON.stringify(bindings), { status: 200 }),
+    )
     vi.stubGlobal('fetch', spy)
     await searchEntities(['a"b'])
-    const body = String((spy.mock.calls[0] as unknown[])[1] instanceof Object ? (spy.mock.calls[0][1] as RequestInit).body : '')
-    expect(body).toContain('a\\"b')
+    expect(String(spy.mock.calls[0][1].body)).toContain('a\\"b')
   })
 
   it('Fuseki가 죽으면 던진다 (호출자가 degrade 판단)', async () => {
