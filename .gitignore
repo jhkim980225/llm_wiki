@@ -2,3 +2,7 @@ docs/서버정보.md
 .env
 __pycache__/
 node_modules/
+
+node_modules/
+.next/
+.env

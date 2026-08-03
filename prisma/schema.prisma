@@ -1,0 +1,73 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Page {
+  id             String    @id @default(uuid())
+  slug           String    @unique
+  title          String
+  pageType       String    @default("concept")
+  status         String    @default("published")
+  content        String    @default("")
+  summary        String    @default("")
+  aliases        String[]  @default([])
+  folderId       String?
+  folder         Folder?   @relation(fields: [folderId], references: [id])
+  categoryPath   String[]  @default([])
+  wikiPath       String    @default("")
+  depth          Int       @default(0)
+  sortOrder      Int       @default(0)
+  inLinks        String[]  @default([])
+  outLinks       String[]  @default([])
+  metadata       Json      @default("{}")
+  version        Int       @default(1)
+  lastEditSource String    @default("user")
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  deletedAt      DateTime?
+
+  revisions PageRevision[]
+
+  @@index([pageType])
+  @@index([folderId])
+  @@index([wikiPath])
+  @@index([deletedAt])
+}
+
+model PageRevision {
+  id         String   @id @default(uuid())
+  pageId     String
+  page       Page     @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  slug       String
+  version    Int
+  title      String
+  content    String
+  summary    String
+  pageType   String
+  status     String
+  editSource String   @default("user")
+  createdAt  DateTime @default(now())
+
+  @@unique([pageId, version])
+  @@index([slug])
+}
+
+model Folder {
+  id        String   @id @default(uuid())
+  parentId  String?
+  parent    Folder?  @relation("FolderTree", fields: [parentId], references: [id])
+  children  Folder[] @relation("FolderTree")
+  name      String
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  pages Page[]
+
+  @@index([parentId])
+}
