@@ -14,6 +14,7 @@
   },
   "dependencies": {
     "@ai-sdk/openai-compatible": "^3.0.20",
+    "@ai-sdk/react": "^4.0.51",
     "@prisma/client": "^6.3.0",
     "ai": "^7.0.48",
     "d3-force": "^3.0.0",

@@ -38,7 +38,8 @@ async function sparqlQuery(q: string): Promise<SparqlResults> {
       'Basic ' + Buffer.from(`${c.user}:${c.password}`).toString('base64')
   }
 
-  const res = await fetch(`${c.url}/${c.dataset}/query`, { method: 'POST', headers, body: q })
+  // Fuseki의 읽기 엔드포인트는 /{dataset}/sparql 이다. /query 는 405를 준다.
+  const res = await fetch(`${c.url}/${c.dataset}/sparql`, { method: 'POST', headers, body: q })
   if (!res.ok) throw new Error(`fuseki query failed: ${res.status}`)
   return (await res.json()) as SparqlResults
 }
