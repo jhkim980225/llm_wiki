@@ -26,3 +26,55 @@ describe('parseOutLinks', () => {
     expect(parseOutLinks('평범한 문장')).toEqual([])
   })
 })
+
+import { computeForbiddenSpans } from './links'
+
+const covers = (s: string, spans: { start: number; end: number }[], needle: string) => {
+  const at = s.indexOf(needle)
+  return spans.some((sp) => sp.start <= at && at + needle.length <= sp.end)
+}
+
+describe('computeForbiddenSpans', () => {
+  it('펜스 코드블록 전체를 금지한다', () => {
+    const s = '앞\n```\nacme 내부\n```\n뒤'
+    expect(covers(s, computeForbiddenSpans(s).spans, 'acme 내부')).toBe(true)
+  })
+
+  it('물결 펜스도 금지한다', () => {
+    const s = '앞\n~~~\nacme\n~~~\n뒤'
+    expect(covers(s, computeForbiddenSpans(s).spans, 'acme')).toBe(true)
+  })
+
+  it('인라인 코드를 금지한다', () => {
+    const s = '이건 `acme` 코드'
+    expect(covers(s, computeForbiddenSpans(s).spans, '`acme`')).toBe(true)
+  })
+
+  it('기존 위키링크를 금지하고 slug를 수집한다', () => {
+    const s = '[[entity/acme|Acme]] 언급'
+    const r = computeForbiddenSpans(s)
+    expect(covers(s, r.spans, '[[entity/acme|Acme]]')).toBe(true)
+    expect(r.linkedSlugs.has('entity/acme')).toBe(true)
+  })
+
+  it('마크다운 링크와 이미지를 금지한다', () => {
+    const s = '[Acme](http://a) ![Acme](http://b)'
+    const spans = computeForbiddenSpans(s).spans
+    expect(covers(s, spans, '[Acme](http://a)')).toBe(true)
+    expect(covers(s, spans, '![Acme](http://b)')).toBe(true)
+  })
+
+  it('자동링크를 금지한다', () => {
+    const s = '<http://acme.com>'
+    expect(covers(s, computeForbiddenSpans(s).spans, '<http://acme.com>')).toBe(true)
+  })
+
+  it('일반 문장은 금지 구간이 없다', () => {
+    expect(computeForbiddenSpans('Acme는 회사다').spans).toEqual([])
+  })
+
+  it('한글 앞에 있어도 오프셋이 맞는다', () => {
+    const s = '한글한글한글 `acme` 끝'
+    expect(covers(s, computeForbiddenSpans(s).spans, '`acme`')).toBe(true)
+  })
+})
