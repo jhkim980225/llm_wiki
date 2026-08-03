@@ -88,3 +88,82 @@ export function computeForbiddenSpans(s: string): { spans: Span[]; linkedSlugs: 
 export function spanContains(spans: Span[], pos: number, end: number): boolean {
   return spans.some((sp) => pos < sp.end && sp.start < end)
 }
+
+export type LinkRef = { slug: string; matchText: string }
+
+const isAsciiWord = (ch: string) => /[A-Za-z0-9_]/.test(ch)
+
+/** matchText가 ASCII 문자/숫자로 시작하거나 끝나면 단어 경계를 따져야 한다. */
+function hasAsciiEdge(s: string): boolean {
+  return s.length > 0 && (isAsciiWord(s[0]) || isAsciiWord(s[s.length - 1]))
+}
+
+/** pos 직전과 end 위치가 ASCII 단어 문자가 아닌지. CJK는 경계로 취급된다. */
+function hasWordBoundary(s: string, pos: number, end: number): boolean {
+  const before = pos > 0 ? s[pos - 1] : ''
+  const after = end < s.length ? s[end] : ''
+  return !isAsciiWord(before) && !isAsciiWord(after)
+}
+
+/** 금지 구간을 피하고 필요한 경우 단어 경계를 지키는 첫 출현 위치. 없으면 -1. */
+function findFirstSafeMatch(haystack: string, needle: string, forbidden: Span[]): number {
+  const needBoundary = hasAsciiEdge(needle)
+  let from = 0
+  for (;;) {
+    const at = haystack.indexOf(needle, from)
+    if (at < 0) return -1
+    const end = at + needle.length
+    if (!spanContains(forbidden, at, end) && (!needBoundary || hasWordBoundary(haystack, at, end))) {
+      return at
+    }
+    from = at + 1
+  }
+}
+
+/**
+ * 각 ref의 첫 번째 안전한 출현을 [[slug|matchText]]로 감싼다.
+ * 이미 해당 slug로 링크된 ref와 selfSlug를 가리키는 ref는 건너뛴다.
+ * 긴 matchText를 먼저 처리해 짧은 것이 긴 것을 잘라먹지 않게 한다.
+ */
+export function linkifyContent(
+  content: string,
+  refs: LinkRef[],
+  selfSlug: string,
+): { content: string; changed: boolean } {
+  let out = content
+  let changed = false
+  let { spans, linkedSlugs } = computeForbiddenSpans(out)
+
+  const ordered = [...refs]
+    .filter((r) => r.slug && r.matchText && r.slug !== selfSlug)
+    .sort((a, b) => b.matchText.length - a.matchText.length || a.slug.localeCompare(b.slug))
+
+  for (const ref of ordered) {
+    if (linkedSlugs.has(ref.slug)) continue
+    const at = findFirstSafeMatch(out, ref.matchText, spans)
+    if (at < 0) continue
+
+    const replacement = '[[' + ref.slug + '|' + ref.matchText + ']]'
+    const end = at + ref.matchText.length
+    out = out.slice(0, at) + replacement + out.slice(end)
+    changed = true
+
+    // 주입으로 뒤쪽 오프셋이 밀렸으므로 금지 구간을 다시 계산한다.
+    // ponytail: 전체 재계산이다. refs가 수백 개로 늘면 span 시프트로 바꾼다.
+    const recomputed = computeForbiddenSpans(out)
+    spans = recomputed.spans
+    linkedSlugs = recomputed.linkedSlugs
+  }
+
+  return { content: out, changed }
+}
+
+/** rename 시 [[oldSlug]] / [[oldSlug|표시명]]의 slug 부분만 newSlug로 바꾼다. */
+export function rewriteWikiLinks(content: string, oldSlug: string, newSlug: string): string {
+  return content.replace(WIKI_LINK_RE, (whole, inner: string) => {
+    const pipe = inner.indexOf('|')
+    const slug = (pipe >= 0 ? inner.slice(0, pipe) : inner).trim()
+    if (slug !== oldSlug) return whole
+    return pipe >= 0 ? '[[' + newSlug + '|' + inner.slice(pipe + 1) + ']]' : '[[' + newSlug + ']]'
+  })
+}

@@ -78,3 +78,61 @@ describe('computeForbiddenSpans', () => {
     expect(covers(s, computeForbiddenSpans(s).spans, '`acme`')).toBe(true)
   })
 })
+
+import { linkifyContent, rewriteWikiLinks } from './links'
+
+describe('linkifyContent', () => {
+  const refs = [{ slug: 'entity/acme', matchText: 'Acme' }]
+
+  it('첫 출현만 링크로 감싼다', () => {
+    const r = linkifyContent('Acme는 회사다. Acme는 크다.', refs, 'self')
+    expect(r.content).toBe('[[entity/acme|Acme]]는 회사다. Acme는 크다.')
+    expect(r.changed).toBe(true)
+  })
+
+  it('코드블록 안은 건드리지 않는다', () => {
+    const src = '```\nAcme\n```\nAcme 본문'
+    expect(linkifyContent(src, refs, 'self').content).toBe('```\nAcme\n```\n[[entity/acme|Acme]] 본문')
+  })
+
+  it('이미 그 slug로 링크돼 있으면 건너뛴다', () => {
+    const src = '[[entity/acme|Acme]] 그리고 Acme'
+    expect(linkifyContent(src, refs, 'self').changed).toBe(false)
+  })
+
+  it('자기 자신은 링크하지 않는다', () => {
+    expect(linkifyContent('Acme', refs, 'entity/acme').changed).toBe(false)
+  })
+
+  it('ASCII 단어 경계를 지킨다', () => {
+    expect(linkifyContent('Acmecorp만 있다', refs, 'self').changed).toBe(false)
+  })
+
+  it('CJK는 경계를 따지지 않는다', () => {
+    const cjk = [{ slug: '개체/북경', matchText: '북경' }]
+    expect(linkifyContent('북경대학교', cjk, 'self').content).toBe('[[개체/북경|북경]]대학교')
+  })
+
+  it('긴 matchText를 먼저 매칭한다', () => {
+    const two = [
+      { slug: 'e/a', matchText: 'Acme' },
+      { slug: 'e/ac', matchText: 'Acme Corp' },
+    ]
+    expect(linkifyContent('Acme Corp 소개', two, 'self').content).toBe('[[e/ac|Acme Corp]] 소개')
+  })
+
+  it('주입 후 뒤쪽 금지 구간 오프셋이 밀린다', () => {
+    const src = 'Acme 그리고 `Acme` 코드'
+    expect(linkifyContent(src, refs, 'self').content).toBe('[[entity/acme|Acme]] 그리고 `Acme` 코드')
+  })
+})
+
+describe('rewriteWikiLinks', () => {
+  it('slug만 바꾸고 표시명은 보존한다', () => {
+    expect(rewriteWikiLinks('[[old|이름]]과 [[old]]', 'old', 'new')).toBe('[[new|이름]]과 [[new]]')
+  })
+
+  it('다른 slug는 그대로 둔다', () => {
+    expect(rewriteWikiLinks('[[other]]', 'old', 'new')).toBe('[[other]]')
+  })
+})
