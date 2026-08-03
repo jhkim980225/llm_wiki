@@ -37,6 +37,51 @@ export async function syncBacklinks(
   }
 }
 
+export type CreateInput = {
+  slug: string
+  title: string
+  content?: string
+  summary?: string
+  pageType?: string
+  aliases?: string[]
+  folderId?: string | null
+  editSource?: 'user' | 'agent' | 'revert'
+}
+
+/**
+ * 페이지를 만든다. 같은 slug의 삭제된 페이지가 있으면 그 행을 되살린다.
+ * slug 유니크 인덱스는 삭제된 행에도 걸리므로, 되살리지 않으면 한 번 지운
+ * 이름은 영영 다시 쓸 수 없다. 리비전은 남겨 같은 이름의 역사를 잇는다.
+ * 이미 살아 있는 slug면 P2002를 그대로 던져 호출자가 409로 옮긴다.
+ */
+export async function createOrRevivePage(input: CreateInput): Promise<Page> {
+  const content = input.content ?? ''
+  const outLinks = parseOutLinks(content)
+  const buried = await db.page.findFirst({ where: { slug: input.slug, NOT: { deletedAt: null } } })
+
+  const data = {
+    title: input.title,
+    content,
+    summary: input.summary ?? '',
+    pageType: input.pageType ?? 'concept',
+    aliases: input.aliases ?? [],
+    folderId: input.folderId ?? null,
+    outLinks,
+    lastEditSource: input.editSource ?? 'user',
+  }
+
+  return db.$transaction(async (tx) => {
+    const saved = buried
+      ? await tx.page.update({
+          where: { id: buried.id },
+          data: { ...data, deletedAt: null, version: buried.version + 1 },
+        })
+      : await tx.page.create({ data: { ...data, slug: input.slug } })
+    await syncBacklinks(tx, saved.slug, buried?.outLinks ?? [], outLinks)
+    return saved
+  })
+}
+
 export type SaveInput = {
   slug: string
   expectedVersion: number
@@ -54,7 +99,8 @@ export type SaveInput = {
  */
 export async function savePage(input: SaveInput): Promise<Page> {
   return db.$transaction(async (tx) => {
-    const current = await tx.page.findUnique({ where: { slug: input.slug } })
+    // 삭제된 페이지는 편집 대상이 아니다 — 되살리려면 createOrRevivePage를 쓴다.
+    const current = await tx.page.findFirst({ where: { slug: input.slug, deletedAt: null } })
     if (!current) throw new Error(`page not found: ${input.slug}`)
     if (current.version !== input.expectedVersion) throw new VersionConflictError(current.version)
 

@@ -1,10 +1,9 @@
 import { tool } from 'ai'
 import { z } from 'zod'
 import { db } from '@/lib/db'
-import { savePage, VersionConflictError, syncBacklinks } from '@/lib/pages/save'
+import { savePage, VersionConflictError, createOrRevivePage } from '@/lib/pages/save'
 import { renamePage } from '@/lib/pages/rename'
 import { normalizeSlug } from '@/lib/wiki/slug'
-import { parseOutLinks } from '@/lib/wiki/links'
 import { searchEntities, nodeAttributes } from '@/lib/fuseki/client'
 
 /** LLM 컨텍스트를 지키기 위한 페이지 읽기 상한 (문자 수). */
@@ -73,23 +72,16 @@ export const wikiTools = {
       const slug = normalizeSlug(args.slug)
       if (!slug) return { error: 'slug is empty after normalization' }
 
-      const existing = await db.page.findUnique({ where: { slug } })
+      const existing = await db.page.findFirst({ where: { slug, deletedAt: null } })
       if (!existing) {
-        const outLinks = parseOutLinks(args.content)
-        const created = await db.$transaction(async (tx) => {
-          const page = await tx.page.create({
-            data: {
-              slug,
-              title: args.title,
-              content: args.content,
-              summary: args.summary ?? '',
-              pageType: args.pageType ?? 'concept',
-              outLinks,
-              lastEditSource: AGENT,
-            },
-          })
-          await syncBacklinks(tx, slug, [], outLinks)
-          return page
+        // 삭제된 동명 페이지가 있으면 되살린다.
+        const created = await createOrRevivePage({
+          slug,
+          title: args.title,
+          content: args.content,
+          summary: args.summary,
+          pageType: args.pageType,
+          editSource: AGENT,
         })
         return { slug: created.slug, version: created.version, created: true }
       }

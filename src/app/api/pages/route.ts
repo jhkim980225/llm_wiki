@@ -1,8 +1,7 @@
 import { NextResponse } from 'next/server'
 import { Prisma } from '@prisma/client'
 import { db } from '@/lib/db'
-import { parseOutLinks } from '@/lib/wiki/links'
-import { syncBacklinks } from '@/lib/pages/save'
+import { createOrRevivePage } from '@/lib/pages/save'
 
 const MAX_LIMIT = 200
 
@@ -37,26 +36,16 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'slug and title are required' }, { status: 400 })
   }
 
-  const content: string = body.content ?? ''
-  const outLinks = parseOutLinks(content)
-
   try {
-    const page = await db.$transaction(async (tx) => {
-      const created = await tx.page.create({
-        data: {
-          slug: body.slug,
-          title: body.title,
-          content,
-          summary: body.summary ?? '',
-          pageType: body.pageType ?? 'concept',
-          aliases: body.aliases ?? [],
-          folderId: body.folderId ?? null,
-          outLinks,
-          lastEditSource: body.editSource ?? 'user',
-        },
-      })
-      await syncBacklinks(tx, created.slug, [], outLinks)
-      return created
+    const page = await createOrRevivePage({
+      slug: body.slug,
+      title: body.title,
+      content: body.content,
+      summary: body.summary,
+      pageType: body.pageType,
+      aliases: body.aliases,
+      folderId: body.folderId,
+      editSource: body.editSource,
     })
     return NextResponse.json(page, { status: 201 })
   } catch (e) {

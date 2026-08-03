@@ -79,3 +79,55 @@ describe('savePage', () => {
     expect(b!.inLinks).toEqual(['a'])
   })
 })
+
+import { createOrRevivePage } from './save'
+
+describe('createOrRevivePage', () => {
+  beforeEach(reset)
+
+  it('새 slug면 그냥 만든다', async () => {
+    const p = await createOrRevivePage({ slug: 'new', title: 'New', content: '본문' })
+    expect(p.slug).toBe('new')
+    expect(p.deletedAt).toBeNull()
+  })
+
+  it('삭제된 페이지의 이름으로 다시 만들면 되살아난다', async () => {
+    const seeded = await seed('gone', '옛 본문')
+    await db.page.update({ where: { id: seeded.id }, data: { deletedAt: new Date() } })
+
+    const revived = await createOrRevivePage({ slug: 'gone', title: '부활', content: '새 본문' })
+
+    expect(revived.id).toBe(seeded.id)
+    expect(revived.deletedAt).toBeNull()
+    expect(revived.content).toBe('새 본문')
+    expect(revived.version).toBe(seeded.version + 1)
+  })
+
+  it('되살릴 때 링크도 다시 걸린다', async () => {
+    const seeded = await seed('gone')
+    await db.page.update({ where: { id: seeded.id }, data: { deletedAt: new Date() } })
+    await seed('target')
+
+    await createOrRevivePage({ slug: 'gone', title: '부활', content: '[[target]]' })
+
+    const t = await db.page.findUnique({ where: { slug: 'target' } })
+    expect(t!.inLinks).toEqual(['gone'])
+  })
+
+  it('살아 있는 slug면 유니크 위반을 던진다', async () => {
+    await seed('alive')
+    await expect(createOrRevivePage({ slug: 'alive', title: 'X' })).rejects.toThrow()
+  })
+})
+
+describe('savePage 삭제된 페이지', () => {
+  beforeEach(reset)
+
+  it('삭제된 페이지는 편집 대상이 아니다', async () => {
+    const seeded = await seed('gone')
+    await db.page.update({ where: { id: seeded.id }, data: { deletedAt: new Date() } })
+    await expect(
+      savePage({ slug: 'gone', expectedVersion: 1, content: 'x' }),
+    ).rejects.toThrow(/not found/)
+  })
+})
