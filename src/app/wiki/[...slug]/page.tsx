@@ -43,35 +43,58 @@ export default function WikiPage({ params }: { params: Promise<{ slug: string[] 
 
   if (missing) {
     return (
-      <main style={{ padding: 24, maxWidth: 760 }}>
-        <h2>
-          <code>{slug}</code> 페이지가 아직 없습니다
-        </h2>
-        <input
-          value={creating.title}
-          onChange={(e) => setCreating({ ...creating, title: e.target.value })}
-          placeholder="제목"
-          style={{ display: 'block', marginBottom: 8, width: '100%' }}
-        />
-        <textarea
-          value={creating.content}
-          onChange={(e) => setCreating({ ...creating, content: e.target.value })}
-          rows={16}
-          style={{ width: '100%', fontFamily: 'monospace' }}
-          placeholder="마크다운. [[slug]]로 다른 문서와 잇습니다."
-        />
-        <button onClick={create}>이 이름으로 생성</button>
+      <main className="shell">
+        <div className="stack rise glass" style={{ maxWidth: '44rem', padding: '1.5rem', marginTop: '2rem' }}>
+          <span className="eyebrow">빈 자리</span>
+          <h2 style={{ margin: 0 }}>
+            <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.9em', color: 'var(--accent)' }}>
+              {slug}
+            </span>
+            <br />
+            아직 아무도 쓰지 않았습니다
+          </h2>
+          <input
+            value={creating.title}
+            onChange={(e) => setCreating({ ...creating, title: e.target.value })}
+            placeholder="제목"
+          />
+          <textarea
+            value={creating.content}
+            onChange={(e) => setCreating({ ...creating, content: e.target.value })}
+            rows={14}
+            placeholder="마크다운. [[slug]]로 다른 문서와 잇습니다."
+          />
+          <div className="row">
+            <button className="primary" onClick={create}>
+              이 이름으로 생성
+            </button>
+            <a href="/graph" className="meta" style={{ marginLeft: '0.4rem' }}>
+              그래프로 돌아가기
+            </a>
+          </div>
+        </div>
       </main>
     )
   }
 
-  if (!page) return <main style={{ padding: 24 }}>불러오는 중…</main>
+  if (!page) {
+    return (
+      <main className="shell">
+        <p className="eyebrow" style={{ marginTop: '2rem' }}>
+          불러오는 중…
+        </p>
+      </main>
+    )
+  }
 
   return (
-    <main style={{ padding: 24 }}>
-      <nav style={{ marginBottom: 16, display: 'flex', gap: 12 }}>
-        <a href="/graph">그래프</a>
-        <button onClick={() => setShowRevisions(true)}>편집 이력</button>
+    <main className="shell">
+      <nav className="row" style={{ margin: '0.6rem 0 1.6rem' }}>
+        <span className="meta">{slug}</span>
+        <span style={{ flex: 1 }} />
+        <button className="ghost" onClick={() => setShowRevisions(true)}>
+          편집 이력
+        </button>
       </nav>
 
       {editing ? (

@@ -8,15 +8,16 @@ import type { EntityEdge, EntityNode } from '@/lib/fuseki/client'
 
 const PAGE_TYPES = ['summary', 'entity', 'concept', 'index', 'synthesis', 'comparison'] as const
 
+/** 오로라 배경 위에서 서로 구분되는 색. 다크·라이트 양쪽에서 대비가 선다. */
 const TYPE_COLOR: Record<string, string> = {
-  summary: '#4285f4',
-  entity: '#34a853',
-  concept: '#fbbc04',
-  index: '#a142f4',
-  synthesis: '#ff6d01',
-  comparison: '#00acc1',
+  summary: '#38bdf8',
+  entity: '#34d399',
+  concept: '#fbbf24',
+  index: '#a78bfa',
+  synthesis: '#fb7185',
+  comparison: '#22d3ee',
 }
-const ENTITY_COLOR = '#7f8c8d'
+const ENTITY_COLOR = '#94a3b8'
 
 type WikiGraph = { nodes: GraphNode[]; edges: GraphEdge[]; meta: GraphMeta }
 type EntityGraph = { nodes: EntityNode[]; edges: EntityEdge[]; error?: string }
@@ -164,82 +165,149 @@ export function GraphView() {
   }
 
   return (
-    <div style={{ position: 'relative', width: '100%', height: '100vh' }}>
+    <div style={{ position: 'relative', width: '100%', height: 'calc(100vh - 3.4rem)' }}>
+      {/* 조작 패널 — 캔버스 위에 떠 있는 유리판 */}
       <div
+        className="glass rise"
         style={{
           position: 'absolute',
-          zIndex: 2,
-          padding: 12,
+          zIndex: 3,
+          top: '1rem',
+          left: '1rem',
+          right: '1rem',
+          padding: '0.7rem 0.9rem',
           display: 'flex',
-          gap: 12,
+          gap: '0.7rem',
           flexWrap: 'wrap',
           alignItems: 'center',
-          background: 'rgba(255,255,255,0.9)',
-          width: '100%',
-          boxSizing: 'border-box',
         }}
       >
         <input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && search()}
-          placeholder="페이지 검색"
-          style={{ padding: '4px 8px' }}
+          placeholder="페이지 검색 ⏎"
+          style={{ minWidth: '12rem' }}
         />
-        <label>
-          <input type="checkbox" checked={wikiLayer} onChange={(e) => setWikiLayer(e.target.checked)} />
-          위키 링크
-        </label>
-        <label>
-          <input
-            type="checkbox"
-            checked={entityLayer}
-            onChange={(e) => setEntityLayer(e.target.checked)}
-          />
-          개체(Fuseki)
-        </label>
-        {entities?.error && (
-          <span style={{ color: '#c5221f' }}>Fuseki 레이어 사용 불가 — 위키는 정상</span>
-        )}
+
+        <span className="row" style={{ gap: '0.4rem' }}>
+          <button
+            className={wikiLayer ? '' : 'ghost'}
+            onClick={() => setWikiLayer(!wikiLayer)}
+            style={{ opacity: wikiLayer ? 1 : 0.5 }}
+          >
+            위키 링크
+          </button>
+          <button
+            className={entityLayer ? '' : 'ghost'}
+            onClick={() => setEntityLayer(!entityLayer)}
+            style={{ opacity: entityLayer ? 1 : 0.5 }}
+          >
+            개체 · Fuseki
+          </button>
+        </span>
+
+        {entities?.error && <span className="notice">Fuseki 레이어 사용 불가 — 위키는 정상</span>}
+
         {mode === 'ego' && (
-          <>
-            <span>ego: {center}</span>
-            <label>
-              깊이
-              <input
-                type="number"
-                min={1}
-                max={3}
-                value={depth}
-                onChange={(e) => setDepth(Number(e.target.value))}
-                style={{ width: 48, marginLeft: 4 }}
-              />
-            </label>
-            <button onClick={() => { setMode('overview'); setCenter(null) }}>전체 보기</button>
-          </>
-        )}
-        <span style={{ display: 'flex', gap: 8 }}>
-          {PAGE_TYPES.map((t) => (
+          <span className="row" style={{ gap: '0.4rem' }}>
+            <span className="chip on" style={{ color: 'var(--accent)' }}>
+              ego · {center}
+            </span>
+            <input
+              type="number"
+              min={1}
+              max={3}
+              value={depth}
+              onChange={(e) => setDepth(Number(e.target.value))}
+              style={{ width: '4rem' }}
+              aria-label="탐색 깊이"
+            />
             <button
-              key={t}
-              onClick={() => toggleType(t)}
-              style={{
-                opacity: activeTypes.has(t) ? 1 : 0.35,
-                borderLeft: `10px solid ${TYPE_COLOR[t]}`,
-                padding: '2px 6px',
+              className="ghost"
+              onClick={() => {
+                setMode('overview')
+                setCenter(null)
               }}
             >
-              {t}
+              전체 보기
             </button>
-          ))}
-        </span>
-        {wiki && (
-          <span style={{ color: '#5f6368' }}>
-            {wiki.meta.returned} / {wiki.meta.total}
-            {wiki.meta.truncated ? ' (잘림)' : ''}
           </span>
         )}
-        {wikiError && <span style={{ color: '#c5221f' }}>{wikiError}</span>}
+
+        <span className="spacer" style={{ flex: 1 }} />
+
+        {wiki && (
+          <span className="meta">
+            {wiki.meta.returned} / {wiki.meta.total}
+            {wiki.meta.truncated ? ' · 잘림' : ''}
+          </span>
+        )}
+        {wikiError && <span className="notice">{wikiError}</span>}
+      </div>
+
+      {/* 범례 — 타입별 필터 */}
+      <div
+        className="glass rise"
+        style={{
+          position: 'absolute',
+          zIndex: 3,
+          left: '1rem',
+          bottom: '1rem',
+          padding: '0.7rem 0.85rem',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '0.35rem',
+        }}
+      >
+        <span className="eyebrow">레이어 · 타입</span>
+        {PAGE_TYPES.map((t) => (
+          <button
+            key={t}
+            className="ghost"
+            onClick={() => toggleType(t)}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+              padding: '0.15em 0.3em',
+              opacity: activeTypes.has(t) ? 1 : 0.38,
+              fontFamily: 'var(--font-mono)',
+              fontSize: '0.72rem',
+              letterSpacing: '0.06em',
+            }}
+          >
+            <span
+              style={{
+                width: 9,
+                height: 9,
+                borderRadius: 999,
+                background: TYPE_COLOR[t],
+                boxShadow: `0 0 10px ${TYPE_COLOR[t]}`,
+                flexShrink: 0,
+              }}
+            />
+            {t}
+          </button>
+        ))}
+        {entityLayer && (
+          <span
+            className="meta"
+            style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.2rem' }}
+          >
+            <span
+              style={{ width: 9, height: 9, borderRadius: 999, background: ENTITY_COLOR, flexShrink: 0 }}
+            />
+            개체
+          </span>
+        )}
+      </div>
+
+      <div
+        className="meta"
+        style={{ position: 'absolute', zIndex: 3, right: '1rem', bottom: '1rem', textAlign: 'right' }}
+      >
+        휠 확대 · 끌어 이동 · 클릭하면 문서 · 두 번 누르면 그 노드 중심
       </div>
 
       <ForceCanvas

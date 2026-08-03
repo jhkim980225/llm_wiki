@@ -18,41 +18,95 @@ export function ChatPanel() {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', maxWidth: 760, padding: 16 }}>
-      <div style={{ flex: 1, overflowY: 'auto' }}>
-        {messages.map((m) => (
-          <div key={m.id} style={{ margin: '12px 0' }}>
-            <strong>{m.role === 'user' ? '나' : '위키 도우미'}</strong>
-            {m.parts.map((part, i) => {
-              if (part.type === 'text') {
-                return (
-                  <p key={i} style={{ whiteSpace: 'pre-wrap', margin: '4px 0' }}>
-                    {part.text}
-                  </p>
-                )
-              }
-              if (part.type.startsWith('tool-')) {
-                return (
-                  <div key={i} style={{ color: '#5f6368', fontSize: 12, margin: '4px 0' }}>
-                    🔧 {toolLabel(part.type)}
-                  </div>
-                )
-              }
-              return null
-            })}
+    <div
+      className="shell"
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        height: 'calc(100vh - 3.4rem)',
+        maxWidth: '46rem',
+        paddingBottom: '1.2rem',
+      }}
+    >
+      <div style={{ flex: 1, overflowY: 'auto', paddingTop: '1.2rem' }}>
+        {messages.length === 0 && (
+          <div className="rise" style={{ paddingTop: '3rem' }}>
+            <p className="eyebrow">위키 도우미</p>
+            <h1 style={{ maxWidth: '22rem' }}>무엇을 적어둘까요?</h1>
+            <p style={{ color: 'var(--text-dim)', lineHeight: 1.8, maxWidth: '30rem' }}>
+              문서를 찾고, 쓰고, 이름을 바꾸고, 링크를 잇습니다. 지식 그래프에 개체 관계도 물어볼 수
+              있습니다. 도우미가 쓴 문서는 편집 이력에 <span className="chip">⌬ 에이전트</span>로
+              남습니다.
+            </p>
           </div>
-        ))}
-        {status === 'submitted' && <p style={{ color: '#5f6368' }}>생각 중…</p>}
+        )}
+
+        {messages.map((m) => {
+          const mine = m.role === 'user'
+          return (
+            <div
+              key={m.id}
+              className="rise"
+              style={{
+                margin: '1rem 0',
+                display: 'flex',
+                justifyContent: mine ? 'flex-end' : 'flex-start',
+              }}
+            >
+              <div
+                className={mine ? 'glass' : undefined}
+                style={{
+                  maxWidth: mine ? '80%' : '100%',
+                  padding: mine ? '0.7rem 1rem' : 0,
+                }}
+              >
+                {!mine && <span className="eyebrow">위키 도우미</span>}
+                {m.parts.map((part, i) => {
+                  if (part.type === 'text') {
+                    return (
+                      <p
+                        key={i}
+                        style={{
+                          whiteSpace: 'pre-wrap',
+                          margin: '0.3rem 0',
+                          lineHeight: 1.75,
+                        }}
+                      >
+                        {part.text}
+                      </p>
+                    )
+                  }
+                  if (part.type.startsWith('tool-')) {
+                    return (
+                      <div key={i} className="row" style={{ margin: '0.4rem 0' }}>
+                        <span className="chip" style={{ color: 'var(--accent)' }}>
+                          ⌬ {toolLabel(part.type)}
+                        </span>
+                      </div>
+                    )
+                  }
+                  return null
+                })}
+              </div>
+            </div>
+          )
+        })}
+
+        {status === 'submitted' && (
+          <p className="eyebrow" style={{ animation: 'rise 600ms var(--ease) infinite alternate' }}>
+            생각 중…
+          </p>
+        )}
       </div>
 
-      <form onSubmit={submit} style={{ display: 'flex', gap: 8 }}>
+      <form onSubmit={submit} className="glass row" style={{ padding: '0.5rem 0.55rem', gap: '0.5rem' }}>
         <input
           value={input}
           onChange={(e) => setInput(e.target.value)}
           placeholder="예: Acme 페이지 만들고 RAG 문서와 이어줘"
-          style={{ flex: 1, padding: 8 }}
+          style={{ flex: 1, background: 'transparent', border: 0, boxShadow: 'none' }}
         />
-        <button type="submit" disabled={status !== 'ready'}>
+        <button type="submit" className="primary" disabled={status !== 'ready'}>
           보내기
         </button>
       </form>

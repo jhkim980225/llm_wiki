@@ -33,39 +33,46 @@ export function PageView({ page, onEdit }: { page: PageData; onEdit: () => void 
   }, [page.content, existing])
 
   return (
-    <article style={{ maxWidth: 760 }}>
-      <header style={{ display: 'flex', alignItems: 'baseline', gap: 12 }}>
-        <h1 style={{ margin: 0 }}>{page.title}</h1>
-        <span style={{ color: '#5f6368' }}>
+    <article style={{ maxWidth: '44rem' }}>
+      <header className="rise" style={{ marginBottom: '1.6rem' }}>
+        <p className="eyebrow">
           {page.pageType} · v{page.version}
-        </span>
-        <button onClick={onEdit}>편집</button>
+          {page.deadLinks.length > 0 && ` · 죽은 링크 ${page.deadLinks.length}`}
+        </p>
+        <div className="row" style={{ alignItems: 'baseline', gap: '0.9rem' }}>
+          <h1 style={{ margin: 0 }}>{page.title}</h1>
+          <button className="ghost" onClick={onEdit}>
+            편집
+          </button>
+        </div>
+        {page.summary && (
+          <p style={{ color: 'var(--text-dim)', margin: '0.4rem 0 0', fontSize: '1.02rem' }}>
+            {page.summary}
+          </p>
+        )}
       </header>
 
-      {page.summary && <p style={{ color: '#5f6368' }}>{page.summary}</p>}
+      <div className="prose rise" dangerouslySetInnerHTML={{ __html: html }} />
 
-      <div className="wiki-body" dangerouslySetInnerHTML={{ __html: html }} />
-
-      <section style={{ marginTop: 32, borderTop: '1px solid #e0e0e0', paddingTop: 12 }}>
-        <h3>백링크 ({page.backlinks.length})</h3>
+      <section className="rise glass" style={{ marginTop: '2.5rem', padding: '1.1rem 1.3rem' }}>
+        <span className="eyebrow">이 문서를 가리키는 곳 · {page.backlinks.length}</span>
         {page.backlinks.length === 0 ? (
-          <p style={{ color: '#5f6368' }}>이 페이지를 가리키는 문서가 없습니다.</p>
+          <p style={{ color: 'var(--text-faint)', margin: '0.6rem 0 0', fontSize: '0.9rem' }}>
+            아직 없습니다. 고아 문서입니다.
+          </p>
         ) : (
-          <ul>
+          <ul className="list-clean" style={{ marginTop: '0.6rem' }}>
             {page.backlinks.map((b) => (
               <li key={b.slug}>
                 <a href={`/wiki/${b.slug}`}>{b.title}</a>
+                <span className="meta" style={{ marginLeft: '0.5rem' }}>
+                  {b.slug}
+                </span>
               </li>
             ))}
           </ul>
         )}
       </section>
-
-      <style>{`
-        .wiki-body a.wikilink { color: #1a73e8; text-decoration: none; }
-        .wiki-body a.wikilink.dead { color: #c5221f; border-bottom: 1px dashed #c5221f; }
-        .wiki-body pre { background: #f6f8fa; padding: 12px; overflow-x: auto; }
-      `}</style>
     </article>
   )
 }

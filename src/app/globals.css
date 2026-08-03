@@ -1,0 +1,562 @@
+/* ─────────────────────────────────────────────────────────────
+   Wiki Graph — 심야 관측소
+   오로라 메시 배경 위 서리 유리 패널. 다크 기본, 라이트 대응.
+   테마는 <html data-theme="dark|light">로 전환한다.
+   ───────────────────────────────────────────────────────────── */
+
+:root {
+  /* 유리 두께·곡률은 테마와 무관하게 일정하다 */
+  --blur: 22px;
+  --radius-sm: 8px;
+  --radius: 14px;
+  --radius-lg: 22px;
+  --hairline: 1px;
+
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --fast: 140ms;
+  --slow: 420ms;
+
+  --font-body: var(--font-plex-kr), system-ui, sans-serif;
+  --font-display: var(--font-gowun), var(--font-plex-kr), serif;
+  --font-mono: var(--font-plex-mono), ui-monospace, monospace;
+}
+
+/* ── 다크 (기본) ─────────────────────────────────────────────── */
+:root,
+[data-theme='dark'] {
+  color-scheme: dark;
+
+  --bg: #070910;
+  --bg-deep: #04060b;
+
+  /* 오로라 세 점 — 배경 메시를 이룬다 */
+  --aurora-1: rgba(56, 189, 248, 0.18);
+  --aurora-2: rgba(129, 92, 255, 0.16);
+  --aurora-3: rgba(16, 185, 129, 0.1);
+
+  --glass: rgba(148, 163, 202, 0.07);
+  --glass-strong: rgba(148, 163, 202, 0.11);
+  --glass-edge: rgba(190, 210, 255, 0.14);
+  --glass-sheen: rgba(255, 255, 255, 0.06);
+  --shadow: 0 18px 50px -18px rgba(0, 0, 0, 0.85);
+
+  --text: #e7ecf7;
+  --text-dim: #9aa6c2;
+  --text-faint: #6b768f;
+
+  --accent: #67e8f9;
+  --accent-2: #a78bfa;
+  --danger: #fb7185;
+  --ok: #34d399;
+
+  --line: rgba(190, 210, 255, 0.1);
+  --field: rgba(10, 14, 24, 0.55);
+
+  /* 그래프 캔버스가 읽어가는 값 */
+  --graph-edge: rgba(180, 200, 240, 0.22);
+  --graph-bridge: rgba(167, 139, 250, 0.55);
+  --graph-label: #b9c4dc;
+  --graph-halo: rgba(0, 0, 0, 0.55);
+}
+
+/* ── 라이트 ──────────────────────────────────────────────────── */
+[data-theme='light'] {
+  color-scheme: light;
+
+  --bg: #eef1f8;
+  --bg-deep: #e3e8f3;
+
+  --aurora-1: rgba(14, 165, 233, 0.2);
+  --aurora-2: rgba(139, 92, 246, 0.16);
+  --aurora-3: rgba(16, 185, 129, 0.12);
+
+  --glass: rgba(255, 255, 255, 0.55);
+  --glass-strong: rgba(255, 255, 255, 0.72);
+  --glass-edge: rgba(255, 255, 255, 0.85);
+  --glass-sheen: rgba(255, 255, 255, 0.6);
+  --shadow: 0 18px 44px -20px rgba(37, 51, 92, 0.35);
+
+  --text: #131a2b;
+  --text-dim: #4e5a75;
+  --text-faint: #7c88a3;
+
+  --accent: #0e7490;
+  --accent-2: #6d28d9;
+  --danger: #be123c;
+  --ok: #047857;
+
+  --line: rgba(30, 45, 85, 0.12);
+  --field: rgba(255, 255, 255, 0.7);
+
+  --graph-edge: rgba(40, 60, 110, 0.2);
+  --graph-bridge: rgba(109, 40, 217, 0.45);
+  --graph-label: #3c4763;
+  --graph-halo: rgba(255, 255, 255, 0.75);
+}
+
+/* ── 바탕 ────────────────────────────────────────────────────── */
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  min-height: 100%;
+}
+
+body {
+  font-family: var(--font-body);
+  color: var(--text);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+  letter-spacing: -0.01em;
+  transition: background var(--slow) var(--ease), color var(--slow) var(--ease);
+}
+
+/* 오로라 메시 — 고정 레이어. 세 개의 큰 방사형 얼룩이 아주 느리게 흐른다. */
+.aurora {
+  position: fixed;
+  inset: -20% -10%;
+  z-index: -2;
+  pointer-events: none;
+  background:
+    radial-gradient(38rem 30rem at 12% 8%, var(--aurora-1), transparent 65%),
+    radial-gradient(44rem 34rem at 88% 22%, var(--aurora-2), transparent 62%),
+    radial-gradient(36rem 36rem at 46% 96%, var(--aurora-3), transparent 60%),
+    linear-gradient(180deg, var(--bg) 0%, var(--bg-deep) 100%);
+  filter: saturate(120%);
+  animation: drift 34s var(--ease) infinite alternate;
+}
+
+@keyframes drift {
+  to {
+    transform: translate3d(2%, -1.5%, 0) scale(1.06);
+  }
+}
+
+/* 그레인 — 유리에 질감을 준다. SVG 노이즈라 이미지 파일이 없다. */
+.grain {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  opacity: 0.42;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='0.34'/%3E%3C/svg%3E");
+}
+
+[data-theme='light'] .grain {
+  opacity: 0.3;
+  mix-blend-mode: multiply;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .aurora {
+    animation: none;
+  }
+  * {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ── 유리 ────────────────────────────────────────────────────── */
+
+.glass {
+  position: relative;
+  background: var(--glass);
+  backdrop-filter: blur(var(--blur)) saturate(165%);
+  -webkit-backdrop-filter: blur(var(--blur)) saturate(165%);
+  border: var(--hairline) solid var(--glass-edge);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
+/* 위쪽 모서리에 얇은 광택 한 줄 — 유리처럼 보이게 하는 핵심 */
+.glass::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: var(--hairline);
+  background: linear-gradient(160deg, var(--glass-sheen), transparent 42%);
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+.glass-strong {
+  background: var(--glass-strong);
+}
+
+/* ── 타이포 ──────────────────────────────────────────────────── */
+
+h1,
+h2,
+h3,
+h4 {
+  font-family: var(--font-display);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin: 0 0 0.4em;
+}
+
+h1 {
+  font-size: clamp(1.9rem, 3.4vw, 2.9rem);
+  line-height: 1.15;
+}
+h2 {
+  font-size: 1.5rem;
+}
+h3 {
+  font-size: 1.12rem;
+}
+
+.eyebrow {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.meta {
+  font-family: var(--font-mono);
+  font-size: 0.74rem;
+  color: var(--text-faint);
+  letter-spacing: 0.02em;
+}
+
+a {
+  color: var(--accent);
+  text-decoration: none;
+  transition: color var(--fast) var(--ease);
+}
+a:hover {
+  color: var(--text);
+}
+
+/* ── 컨트롤 ──────────────────────────────────────────────────── */
+
+button,
+.btn {
+  font-family: var(--font-body);
+  font-size: 0.86rem;
+  color: var(--text);
+  background: var(--glass);
+  border: var(--hairline) solid var(--glass-edge);
+  border-radius: 999px;
+  padding: 0.42em 0.95em;
+  cursor: pointer;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  transition:
+    background var(--fast) var(--ease),
+    border-color var(--fast) var(--ease),
+    transform var(--fast) var(--ease);
+}
+
+button:hover:not(:disabled) {
+  background: var(--glass-strong);
+  border-color: var(--accent);
+  transform: translateY(-1px);
+}
+
+button:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+button.primary {
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  border-color: transparent;
+  color: #05070d;
+  font-weight: 600;
+}
+
+[data-theme='light'] button.primary {
+  color: #fff;
+}
+
+button.ghost {
+  background: transparent;
+  border-color: transparent;
+  color: var(--text-dim);
+}
+button.ghost:hover:not(:disabled) {
+  color: var(--text);
+  border-color: var(--glass-edge);
+}
+
+input,
+textarea,
+select {
+  font-family: var(--font-body);
+  font-size: 0.9rem;
+  color: var(--text);
+  background: var(--field);
+  border: var(--hairline) solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 0.55em 0.8em;
+  outline: none;
+  transition: border-color var(--fast) var(--ease), box-shadow var(--fast) var(--ease);
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--text-faint);
+}
+
+input:focus,
+textarea:focus,
+select:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);
+}
+
+textarea {
+  font-family: var(--font-mono);
+  line-height: 1.65;
+  resize: vertical;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* ── 레이아웃 ────────────────────────────────────────────────── */
+
+.shell {
+  max-width: 68rem;
+  margin: 0 auto;
+  padding: 1.2rem clamp(1rem, 4vw, 2.5rem) 4rem;
+}
+
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  gap: 1.1rem;
+  padding: 0.7rem clamp(1rem, 4vw, 2.5rem);
+  background: color-mix(in srgb, var(--bg) 62%, transparent);
+  backdrop-filter: blur(16px) saturate(150%);
+  -webkit-backdrop-filter: blur(16px) saturate(150%);
+  border-bottom: var(--hairline) solid var(--line);
+}
+
+.topbar .brand {
+  font-family: var(--font-display);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--text);
+}
+
+.topbar nav {
+  display: flex;
+  gap: 0.9rem;
+  font-size: 0.88rem;
+}
+
+.topbar .spacer {
+  flex: 1;
+}
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+/* 등장 — 페이지 로드 때 한 번, 계단식으로 */
+.rise {
+  animation: rise var(--slow) var(--ease) both;
+}
+.rise:nth-child(2) {
+  animation-delay: 60ms;
+}
+.rise:nth-child(3) {
+  animation-delay: 120ms;
+}
+.rise:nth-child(4) {
+  animation-delay: 180ms;
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+}
+
+/* ── 위키 본문 ───────────────────────────────────────────────── */
+
+.prose {
+  font-size: 1rem;
+  line-height: 1.78;
+  color: var(--text);
+}
+
+.prose p {
+  margin: 0 0 1em;
+}
+
+.prose code {
+  font-family: var(--font-mono);
+  font-size: 0.86em;
+  background: var(--field);
+  border: var(--hairline) solid var(--line);
+  border-radius: 5px;
+  padding: 0.1em 0.4em;
+}
+
+.prose pre {
+  font-family: var(--font-mono);
+  background: var(--field);
+  border: var(--hairline) solid var(--line);
+  border-radius: var(--radius);
+  padding: 1rem 1.1rem;
+  overflow-x: auto;
+  line-height: 1.6;
+}
+
+.prose pre code {
+  background: none;
+  border: 0;
+  padding: 0;
+}
+
+.prose blockquote {
+  margin: 0 0 1em;
+  padding-left: 1rem;
+  border-left: 2px solid var(--accent);
+  color: var(--text-dim);
+}
+
+.prose hr {
+  border: 0;
+  border-top: var(--hairline) solid var(--line);
+  margin: 2rem 0;
+}
+
+/* 위키 링크 — 살아 있으면 밑줄이 호버에 자라고, 죽었으면 점선 경고 */
+.prose a.wikilink {
+  color: var(--accent);
+  background-image: linear-gradient(var(--accent), var(--accent));
+  background-size: 0% var(--hairline);
+  background-position: 0 100%;
+  background-repeat: no-repeat;
+  transition: background-size var(--fast) var(--ease);
+}
+
+.prose a.wikilink:hover {
+  background-size: 100% var(--hairline);
+}
+
+.prose a.wikilink.dead {
+  color: var(--danger);
+  background: none;
+  border-bottom: 1px dashed var(--danger);
+}
+
+/* ── 조각들 ──────────────────────────────────────────────────── */
+
+.chip {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.06em;
+  padding: 0.25em 0.6em;
+  border-radius: 999px;
+  border: var(--hairline) solid var(--line);
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+.chip.on {
+  color: var(--text);
+  border-color: currentColor;
+}
+
+.divider {
+  height: var(--hairline);
+  background: var(--line);
+  border: 0;
+  margin: 1.6rem 0 1rem;
+}
+
+.list-clean {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.list-clean li + li {
+  margin-top: 0.35rem;
+}
+
+.notice {
+  color: var(--danger);
+  font-size: 0.82rem;
+}
+
+/* diff — 추가/삭제 줄 */
+.diff {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  line-height: 1.65;
+  background: var(--field);
+  border: var(--hairline) solid var(--line);
+  border-radius: var(--radius);
+  padding: 0.9rem;
+  overflow-x: auto;
+  margin: 0;
+}
+
+.diff .add {
+  background: color-mix(in srgb, var(--ok) 16%, transparent);
+  color: var(--text);
+}
+
+.diff .del {
+  background: color-mix(in srgb, var(--danger) 16%, transparent);
+  color: var(--text);
+}
+
+/* ── 스크롤바 ────────────────────────────────────────────────── */
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--glass-strong);
+  border: 2px solid transparent;
+  background-clip: content-box;
+  border-radius: 999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--glass-edge);
+  background-clip: content-box;
+}
