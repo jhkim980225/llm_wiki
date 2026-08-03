@@ -1,13 +1,31 @@
 'use client'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useChat } from '@ai-sdk/react'
 
 /** 툴 호출 파트는 `tool-<이름>` 타입으로 온다. 어떤 툴이 돌았는지만 보여준다. */
 const toolLabel = (type: string) => type.replace(/^tool-/, '')
 
+type LlmHealth = {
+  backend: string
+  model: string
+  ok: boolean
+  modelAvailable?: boolean
+  latencyMs?: number
+  error?: string
+}
+
 export function ChatPanel() {
   const { messages, sendMessage, status } = useChat()
   const [input, setInput] = useState('')
+  const [llm, setLlm] = useState<LlmHealth | null>(null)
+
+  // 백엔드가 죽었으면 답 없는 입력창을 붙들고 있지 않게 미리 알려준다.
+  useEffect(() => {
+    fetch('/api/llm')
+      .then((r) => r.json())
+      .then(setLlm)
+      .catch(() => setLlm(null))
+  }, [])
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -29,6 +47,20 @@ export function ChatPanel() {
       }}
     >
       <div style={{ flex: 1, overflowY: 'auto', paddingTop: '1.2rem' }}>
+        {llm && (
+          <div className="row rise" style={{ justifyContent: 'flex-end' }}>
+            <span
+              className="chip"
+              title={llm.error ?? `${llm.backend} · ${llm.model}`}
+              style={{ color: llm.ok ? 'var(--ok)' : 'var(--danger)', borderColor: 'currentColor' }}
+            >
+              {llm.ok ? '●' : '○'} {llm.backend} · {llm.model}
+              {llm.ok && llm.modelAvailable === false ? ' · 모델 없음' : ''}
+              {!llm.ok ? ' · 연결 안 됨' : ''}
+            </span>
+          </div>
+        )}
+
         {messages.length === 0 && (
           <div className="rise" style={{ paddingTop: '3rem' }}>
             <p className="eyebrow">위키 도우미</p>
