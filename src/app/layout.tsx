@@ -54,8 +54,9 @@ export default function RootLayout({ children }: { children: ReactNode }) {
             Wiki<span style={{ color: 'var(--accent)' }}>·</span>Graph
           </a>
           <nav>
-            <a href="/graph">그래프</a>
-            <a href="/wiki/index">위키</a>
+            <a href="/wiki">위키</a>
+            <a href="/graph">연결 보기</a>
+            <a href="/sources">소스</a>
             <a href="/chat">도우미</a>
           </nav>
           <span className="spacer" />

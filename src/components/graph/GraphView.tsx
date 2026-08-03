@@ -2,9 +2,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { ForceCanvas, type CanvasEdge, type CanvasNode } from './ForceCanvas'
-import { matchLayers } from '@/lib/graph/match'
 import type { GraphEdge, GraphMeta, GraphNode } from '@/lib/graph/subset'
-import type { EntityEdge, EntityNode } from '@/lib/fuseki/client'
 
 const PAGE_TYPES = ['summary', 'entity', 'concept', 'index', 'synthesis', 'comparison'] as const
 
@@ -17,10 +15,8 @@ const TYPE_COLOR: Record<string, string> = {
   synthesis: '#fb7185',
   comparison: '#22d3ee',
 }
-const ENTITY_COLOR = '#94a3b8'
 
 type WikiGraph = { nodes: GraphNode[]; edges: GraphEdge[]; meta: GraphMeta }
-type EntityGraph = { nodes: EntityNode[]; edges: EntityEdge[]; error?: string }
 
 export function GraphView() {
   const router = useRouter()
@@ -35,9 +31,6 @@ export function GraphView() {
   const [wiki, setWiki] = useState<WikiGraph | null>(null)
   const [wikiError, setWikiError] = useState<string | null>(null)
 
-  const [entityLayer, setEntityLayer] = useState(false)
-  const [entities, setEntities] = useState<EntityGraph | null>(null)
-  const [wikiLayer, setWikiLayer] = useState(true)
 
   // 위키 링크 레이어
   useEffect(() => {
@@ -63,33 +56,10 @@ export function GraphView() {
     }
   }, [mode, center, depth, activeTypes])
 
-  // Fuseki 개체 레이어 — 현재 보이는 페이지 이름으로만 조회한다.
-  useEffect(() => {
-    if (!entityLayer || !wiki) {
-      setEntities(null)
-      return
-    }
-    const labels = wiki.nodes.map((n) => n.title).filter(Boolean)
-    if (labels.length === 0) {
-      setEntities({ nodes: [], edges: [] })
-      return
-    }
-
-    let cancelled = false
-    fetch(`/api/graph/entities?labels=${encodeURIComponent(labels.join(','))}`)
-      .then((r) => r.json())
-      .then((body) => !cancelled && setEntities(body))
-      .catch((e) => !cancelled && setEntities({ nodes: [], edges: [], error: String(e) }))
-    return () => {
-      cancelled = true
-    }
-  }, [entityLayer, wiki])
-
   const { nodes, edges } = useMemo(() => {
     const canvasNodes: CanvasNode[] = []
     const canvasEdges: CanvasEdge[] = []
-
-    if (wikiLayer && wiki) {
+    if (wiki) {
       for (const n of wiki.nodes) {
         canvasNodes.push({
           id: `page:${n.slug}`,
@@ -102,36 +72,11 @@ export function GraphView() {
         canvasEdges.push({ source: `page:${e.source}`, target: `page:${e.target}` })
       }
     }
-
-    if (entityLayer && entities) {
-      for (const n of entities.nodes) {
-        canvasNodes.push({ id: `ent:${n.uri}`, label: n.label, group: '__entity', size: 5 })
-      }
-      for (const e of entities.edges) {
-        canvasEdges.push({ source: `ent:${e.source}`, target: `ent:${e.target}` })
-      }
-
-      // 레이어 간 다리 — 이름이 완전히 같은 페이지와 개체를 점선으로 잇는다.
-      if (wikiLayer && wiki) {
-        const pageMeta = wiki.nodes.map((n) => ({ slug: n.slug, title: n.title, aliases: [] }))
-        for (const m of matchLayers(pageMeta, entities.nodes)) {
-          canvasEdges.push({
-            source: `page:${m.pageSlug}`,
-            target: `ent:${m.entityUri}`,
-            dashed: true,
-          })
-        }
-      }
-    }
-
     return { nodes: canvasNodes, edges: canvasEdges }
     // 시뮬레이션이 배열을 제자리에서 변형하므로 의존성이 바뀔 때만 새 배열을 만든다.
-  }, [wiki, entities, wikiLayer, entityLayer])
+  }, [wiki])
 
-  const colorOf = useCallback(
-    (group: string) => (group === '__entity' ? ENTITY_COLOR : (TYPE_COLOR[group] ?? '#9aa0a6')),
-    [],
-  )
+  const colorOf = useCallback((group: string) => TYPE_COLOR[group] ?? '#9aa0a6', [])
 
   const openNode = useCallback(
     (id: string) => {
@@ -190,25 +135,6 @@ export function GraphView() {
           style={{ minWidth: '12rem' }}
         />
 
-        <span className="row" style={{ gap: '0.4rem' }}>
-          <button
-            className={wikiLayer ? '' : 'ghost'}
-            onClick={() => setWikiLayer(!wikiLayer)}
-            style={{ opacity: wikiLayer ? 1 : 0.5 }}
-          >
-            위키 링크
-          </button>
-          <button
-            className={entityLayer ? '' : 'ghost'}
-            onClick={() => setEntityLayer(!entityLayer)}
-            style={{ opacity: entityLayer ? 1 : 0.5 }}
-          >
-            개체 · Fuseki
-          </button>
-        </span>
-
-        {entities?.error && <span className="notice">Fuseki 레이어 사용 불가 — 위키는 정상</span>}
-
         {mode === 'ego' && (
           <span className="row" style={{ gap: '0.4rem' }}>
             <span className="chip on" style={{ color: 'var(--accent)' }}>
@@ -260,7 +186,7 @@ export function GraphView() {
           gap: '0.35rem',
         }}
       >
-        <span className="eyebrow">레이어 · 타입</span>
+        <span className="eyebrow">문서 타입</span>
         {PAGE_TYPES.map((t) => (
           <button
             key={t}
@@ -290,17 +216,6 @@ export function GraphView() {
             {t}
           </button>
         ))}
-        {entityLayer && (
-          <span
-            className="meta"
-            style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.2rem' }}
-          >
-            <span
-              style={{ width: 9, height: 9, borderRadius: 999, background: ENTITY_COLOR, flexShrink: 0 }}
-            />
-            개체
-          </span>
-        )}
       </div>
 
       <div

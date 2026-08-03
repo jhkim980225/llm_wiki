@@ -4,20 +4,26 @@ export const dynamic = 'force-dynamic'
 
 const CARDS = [
   {
-    href: '/graph',
+    href: '/wiki',
     kbd: '01',
-    title: '그래프',
-    body: '문서 사이의 링크를 별자리처럼 펼친다. 노드를 두 번 누르면 그 문서를 중심으로 다시 그린다.',
-  },
-  {
-    href: '/wiki/index',
-    kbd: '02',
     title: '위키',
     body: '[[링크]]로 잇는 마크다운 문서. 백링크와 편집 이력이 따라붙는다.',
   },
   {
-    href: '/chat',
+    href: '/sources',
+    kbd: '02',
+    title: '소스',
+    body: 'Fuseki 온톨로지의 개체를 문서로 들이고, 관계를 링크로 적는다. 사람이 손댄 문서는 덮어쓰지 않는다.',
+  },
+  {
+    href: '/graph',
     kbd: '03',
+    title: '연결 보기',
+    body: '문서가 어떻게 이어져 있는지 한눈에 훑는다. 문서를 두 번 누르면 그 문서를 중심으로 다시 그린다.',
+  },
+  {
+    href: '/chat',
+    kbd: '04',
     title: '도우미',
     body: '사내 LLM이 문서를 읽고 고친다. 에이전트 편집은 이력에 따로 남는다.',
   },
