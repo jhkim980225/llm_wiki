@@ -1,0 +1,8 @@
+# 마이그레이션 전용 소형 이미지.
+# 앱 이미지에는 Next standalone이 추려낸 node_modules만 들어가 Prisma CLI의
+# 전이 의존성(effect 등)이 없다. 그래서 CLI는 여기서 따로 설치해 쓴다.
+FROM node:22-alpine
+WORKDIR /app
+RUN npm i -g prisma@6.19.3
+COPY prisma ./prisma
+CMD ["prisma", "migrate", "deploy"]

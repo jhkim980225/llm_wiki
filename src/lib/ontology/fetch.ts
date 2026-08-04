@@ -4,6 +4,13 @@ import type { RawEntity, RawTriple } from './build'
 
 type Binding = Record<string, { type: string; value: string }>
 
+/**
+ * 소스마다 데이터를 기본 그래프에 두기도 하고 named graph에 두기도 한다
+ * (승훈=기본, ejkim·kakao=named). 어느 쪽이든 잡히도록 두 경우를 합집합으로 묶는다.
+ */
+const anyGraph = (pattern: string) =>
+  `{ ${pattern} } UNION { GRAPH ?__g { ${pattern} } }`
+
 async function query(source: OntologySource, sparql: string): Promise<Binding[]> {
   const headers: Record<string, string> = {
     'Content-Type': 'application/sparql-query',
@@ -31,8 +38,7 @@ export async function fetchEntities(source: OntologySource, limit: number): Prom
   const rows = await query(
     source,
     `SELECT ?s ?label (GROUP_CONCAT(DISTINCT STR(?t); separator="|") AS ?types) WHERE {
-       ?s <${source.labelPredicate}> ?label .
-       OPTIONAL { ?s a ?t }
+       ${anyGraph(`?s <${source.labelPredicate}> ?label . OPTIONAL { ?s a ?t }`)}
      } GROUP BY ?s ?label LIMIT ${Math.max(1, Math.floor(limit))}`,
   )
   return rows.map((r) => ({
@@ -63,9 +69,9 @@ export async function fetchTriples(
 
     const rows = await query(
       source,
-      `SELECT ?s ?p ?o WHERE {
+      `SELECT DISTINCT ?s ?p ?o WHERE {
          VALUES ?s { ${values} }
-         ?s ?p ?o .
+         ${anyGraph('?s ?p ?o')}
          FILTER(STRSTARTS(STR(?p), "${escapeLiteral(source.relationNamespace)}"))
        }`,
     )
@@ -97,8 +103,7 @@ export async function fetchLabels(
       source,
       `SELECT ?s ?label (GROUP_CONCAT(DISTINCT STR(?t); separator="|") AS ?types) WHERE {
          VALUES ?s { ${values} }
-         ?s <${source.labelPredicate}> ?label .
-         OPTIONAL { ?s a ?t }
+         ${anyGraph(`?s <${source.labelPredicate}> ?label . OPTIONAL { ?s a ?t }`)}
        } GROUP BY ?s ?label`,
     )
     for (const r of rows) {

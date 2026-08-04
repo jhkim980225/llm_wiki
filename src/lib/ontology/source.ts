@@ -24,10 +24,28 @@ export const RDFS_LABEL = 'http://www.w3.org/2000/01/rdf-schema#label'
 
 /**
  * 2026-08-04 기준 사내에서 접근 가능한 소스.
- * ejkim-ontology(30303·30306·30301)와 manager-ontology(30308)는
- * 네임스페이스의 default-deny NetworkPolicy에 막혀 있어 여기 없다.
+ *
+ * 주의: NodePort라도 **파드가 도는 노드**로 붙어야 하는 것이 있다. ejkim-ontology는
+ * 네임스페이스에 default-deny NetworkPolicy가 걸려 있어 다른 노드를 거쳐 오는 트래픽은
+ * 막히고, 파드가 있는 fedaworker12(192.168.0.114)로 직접 가면 통과한다.
  */
 export const SOURCES: OntologySource[] = [
+  {
+    id: 'ejkim',
+    name: '이메일 온톨로지',
+    url: process.env.ONTOLOGY_EJKIM_URL || 'http://192.168.0.114:30303',
+    dataset: 'ontology',
+    relationNamespace: 'urn:ejkim:ontology:',
+    labelPredicate: RDFS_LABEL,
+  },
+  {
+    id: 'kakao',
+    name: '카카오 지식그래프',
+    url: process.env.ONTOLOGY_KAKAO_URL || 'http://192.168.0.114:30301',
+    dataset: 'ontology',
+    relationNamespace: 'urn:feda:kg:vocab/',
+    labelPredicate: RDFS_LABEL,
+  },
   {
     id: 'seunghoon',
     name: '승훈 온톨로지',

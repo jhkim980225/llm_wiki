@@ -16,6 +16,31 @@ npm run dev                   # http://localhost:3000
 
 화면: `/wiki` 들머리 · `/wiki/<slug>` 문서 · `/sources` 온톨로지 적재 · `/graph` 연결 보기 · `/chat` 도우미
 
+## 사내 배포 (k8s)
+
+네임스페이스 `jh-wiki-graph`. 자체 Postgres를 쓰고 다른 네임스페이스 리소스는 건드리지 않는다.
+
+```
+UI          http://192.168.0.103:31900   (NodePort 31900)
+Postgres    클러스터 내부 postgres:5432   (PVC 20Gi, cephfs-sc)
+```
+
+배포 절차 — **레지스트리가 없어서** 이미지를 노드 containerd에 직접 넣는다:
+
+```bash
+docker build -t wiki-graph:0.1.0 .
+docker build -f Dockerfile.migrate -t wiki-graph-migrate:0.1.0 .
+docker save wiki-graph:0.1.0 -o wiki-graph.tar          # 각 517MB, 업로드 ~100초
+scp wiki-graph.tar feda@192.168.0.103:~/
+ssh feda@192.168.0.103 'sudo ctr -n k8s.io images import ~/wiki-graph.tar'
+kubectl apply -f deploy/k8s.yaml
+```
+
+- 이미지를 fedaworker01에만 넣었으므로 `nodeSelector`로 그 노드에 고정하고 `imagePullPolicy: Never`
+- 마이그레이션은 **전용 이미지**로 돈다. 앱 이미지의 node_modules는 Next standalone이 추려낸 것이라 Prisma CLI의 전이 의존성(`effect` 등)이 없다
+- 기본 스토리지클래스 longhorn은 프로비저너가 죽어 있어 `cephfs-sc`를 명시한다
+- **클러스터 안에서는 푸세키 3개가 전부 붙는다.** VPN에서 막히던 카카오(30301)도 통과 — NetworkPolicy가 클러스터 내부 트래픽은 허용한다
+
 ## 테스트
 
 ```bash
