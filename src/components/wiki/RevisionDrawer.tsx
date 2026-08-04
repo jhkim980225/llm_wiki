@@ -56,45 +56,40 @@ export function RevisionDrawer({
 
   return (
     <aside
-      className="glass-strong"
       style={{
         position: 'fixed',
-        right: '0.9rem',
-        top: '4.2rem',
-        bottom: '0.9rem',
-        width: 'min(30rem, calc(100vw - 1.8rem))',
-        borderRadius: 'var(--radius-lg)',
-        padding: '1.2rem',
+        right: 0,
+        top: 0,
+        bottom: 0,
+        width: 'min(460px, 100vw)',
+        padding: 16,
         overflowY: 'auto',
         zIndex: 50,
-        animation: 'rise var(--slow) var(--ease) both',
-        backdropFilter: 'blur(var(--blur)) saturate(165%)',
-        WebkitBackdropFilter: 'blur(var(--blur)) saturate(165%)',
-        border: 'var(--hairline) solid var(--glass-edge)',
-        boxShadow: 'var(--shadow)',
+        background: 'var(--bg-sidebar)',
+        borderLeft: '1px solid var(--line)',
       }}
     >
-      <div className="row" style={{ justifyContent: 'space-between' }}>
-        <span className="eyebrow">편집 이력</span>
-        <button className="ghost" onClick={onClose}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <strong style={{ fontSize: 13 }}>편집 이력</strong>
+        <button className="quiet" onClick={onClose}>
           닫기
         </button>
       </div>
 
-      <ul className="list-clean" style={{ marginTop: '0.8rem' }}>
+      <ul style={{ listStyle: 'none', margin: '8px 0 0', padding: 0 }}>
         {items.map((r) => (
           <li
             key={r.id}
-            className="row"
+           
             style={{
               justifyContent: 'space-between',
-              borderBottom: 'var(--hairline) solid var(--line)',
+              borderBottom: '1px solid var(--line-soft)',
               padding: '0.55rem 0',
               marginTop: 0,
             }}
           >
             <button
-              className="ghost"
+              className="quiet"
               onClick={() => setPicked(r)}
               style={{
                 textAlign: 'left',
@@ -124,7 +119,7 @@ export function RevisionDrawer({
 
       {picked && (
         <>
-          <p className="eyebrow" style={{ marginTop: '1.2rem' }}>
+          <p className="meta" style={{ marginTop: 16 }}>
             v{picked.version} → 현재
           </p>
           <pre className="diff">

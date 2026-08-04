@@ -36,23 +36,14 @@ export function ChatPanel() {
   }
 
   return (
-    <div
-      className="shell"
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        height: 'calc(100vh - 3.4rem)',
-        maxWidth: '46rem',
-        paddingBottom: '1.2rem',
-      }}
-    >
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', maxWidth: 720, margin: '0 auto', width: '100%', padding: '0 20px 16px' }}>
       <div style={{ flex: 1, overflowY: 'auto', paddingTop: '1.2rem' }}>
         {llm && (
-          <div className="row rise" style={{ justifyContent: 'flex-end' }}>
+          <div style={{ justifyContent: 'flex-end' }}>
             <span
-              className="chip"
+              className="meta"
               title={llm.error ?? `${llm.backend} · ${llm.model}`}
-              style={{ color: llm.ok ? 'var(--ok)' : 'var(--danger)', borderColor: 'currentColor' }}
+              style={{ color: llm.ok ? 'var(--ok)' : 'var(--danger)' }}
             >
               {llm.ok ? '●' : '○'} {llm.backend} · {llm.model}
               {llm.ok && llm.modelAvailable === false ? ' · 모델 없음' : ''}
@@ -62,12 +53,12 @@ export function ChatPanel() {
         )}
 
         {messages.length === 0 && (
-          <div className="rise" style={{ paddingTop: '3rem' }}>
-            <p className="eyebrow">위키 도우미</p>
-            <h1 style={{ maxWidth: '22rem' }}>무엇을 적어둘까요?</h1>
+          <div style={{ paddingTop: 24 }}>
+            <p className="meta">위키 도우미</p>
+            <h2 style={{ margin: '8px 0' }}>무엇을 적어둘까요?</h2>
             <p style={{ color: 'var(--text-dim)', lineHeight: 1.8, maxWidth: '30rem' }}>
               문서를 찾고, 쓰고, 이름을 바꾸고, 링크를 잇습니다. 지식 그래프에 개체 관계도 물어볼 수
-              있습니다. 도우미가 쓴 문서는 편집 이력에 <span className="chip">⌬ 에이전트</span>로
+              있습니다. 도우미가 쓴 문서는 편집 이력에 <span className="tag">⌬ 에이전트</span>로
               남습니다.
             </p>
           </div>
@@ -78,7 +69,7 @@ export function ChatPanel() {
           return (
             <div
               key={m.id}
-              className="rise"
+             
               style={{
                 margin: '1rem 0',
                 display: 'flex',
@@ -86,13 +77,14 @@ export function ChatPanel() {
               }}
             >
               <div
-                className={mine ? 'glass' : undefined}
                 style={{
                   maxWidth: mine ? '80%' : '100%',
-                  padding: mine ? '0.7rem 1rem' : 0,
+                  padding: mine ? '8px 12px' : 0,
+                  background: mine ? 'var(--bg-hover)' : undefined,
+                  borderRadius: 6,
                 }}
               >
-                {!mine && <span className="eyebrow">위키 도우미</span>}
+                {!mine && <span className="meta">위키 도우미</span>}
                 {m.parts.map((part, i) => {
                   if (part.type === 'text') {
                     return (
@@ -110,8 +102,8 @@ export function ChatPanel() {
                   }
                   if (part.type.startsWith('tool-')) {
                     return (
-                      <div key={i} className="row" style={{ margin: '0.4rem 0' }}>
-                        <span className="chip" style={{ color: 'var(--accent)' }}>
+                      <div key={i} style={{ margin: '0.4rem 0' }}>
+                        <span className="tag" style={{ color: 'var(--accent)' }}>
                           ⌬ {toolLabel(part.type)}
                         </span>
                       </div>
@@ -125,13 +117,13 @@ export function ChatPanel() {
         })}
 
         {status === 'submitted' && (
-          <p className="eyebrow" style={{ animation: 'rise 600ms var(--ease) infinite alternate' }}>
+          <p className="meta">
             생각 중…
           </p>
         )}
       </div>
 
-      <form onSubmit={submit} className="glass row" style={{ padding: '0.5rem 0.55rem', gap: '0.5rem' }}>
+      <form onSubmit={submit} style={{ display: 'flex', gap: 8, border: '1px solid var(--line)', borderRadius: 6, padding: 6 }}>
         <input
           value={input}
           onChange={(e) => setInput(e.target.value)}

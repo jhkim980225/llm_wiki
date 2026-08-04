@@ -55,10 +55,8 @@ export function PageEditor({
   if (conflict) {
     const diff = lineDiff(conflict.serverContent, content)
     return (
-      <div className="glass rise" style={{ maxWidth: '44rem', padding: '1.4rem' }}>
-        <p className="eyebrow" style={{ color: 'var(--danger)' }}>
-          저장 충돌
-        </p>
+      <div style={{ maxWidth: 700 }}>
+        <p className="notice">저장 충돌</p>
         <h3>다른 곳에서 이 문서가 v{conflict.serverVersion}로 바뀌었습니다</h3>
         <p style={{ color: 'var(--text-dim)', fontSize: '0.9rem' }}>
           서버 본문 기준으로 내 편집이 더한 줄(+)과 지운 줄(−)입니다. 자동으로 합치지 않습니다.
@@ -71,11 +69,11 @@ export function PageEditor({
             </div>
           ))}
         </pre>
-        <div className="row" style={{ marginTop: '1rem' }}>
+        <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
           <button className="primary" onClick={() => save(conflict.serverVersion)} disabled={saving}>
             내 편집으로 덮어쓰기
           </button>
-          <button className="ghost" onClick={() => setConflict(null)}>
+          <button className="quiet" onClick={() => setConflict(null)}>
             돌아가기
           </button>
         </div>
@@ -84,13 +82,13 @@ export function PageEditor({
   }
 
   return (
-    <div className="stack rise" style={{ maxWidth: '44rem' }}>
-      <span className="eyebrow">편집 중 · v{page.version}</span>
+    <div style={{ display: 'grid', gap: 8, maxWidth: 700 }}>
+      <span className="meta">편집 중 · v{page.version}</span>
       <input
         value={title}
         onChange={(e) => setTitle(e.target.value)}
         placeholder="제목"
-        style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', fontWeight: 700 }}
+        style={{ fontSize: '1.2rem', fontWeight: 600 }}
       />
       <input value={summary} onChange={(e) => setSummary(e.target.value)} placeholder="한 줄 요약" />
       <textarea
@@ -100,11 +98,11 @@ export function PageEditor({
         placeholder="마크다운. 다른 문서는 [[slug]] 또는 [[slug|표시명]]으로 잇습니다."
       />
       {error && <span className="notice">{error}</span>}
-      <div className="row">
+      <div style={{ display: 'flex', gap: 8 }}>
         <button className="primary" onClick={() => save(page.version)} disabled={saving}>
           {saving ? '저장 중…' : '저장'}
         </button>
-        <button className="ghost" onClick={onCancel}>
+        <button className="quiet" onClick={onCancel}>
           취소
         </button>
       </div>
