@@ -6,6 +6,7 @@ import { attributesFor, type Attributed } from '@/lib/agent/tools'
 import { generateJson } from '@/lib/llm/json'
 import { llmConfig, llmModel, llmProviderOptions } from '@/lib/llm/provider'
 import { normalizeSlug } from '@/lib/wiki/slug'
+import { parseOutLinks, sanitizeWikiLinks } from '@/lib/wiki/links'
 import { createOrRevivePage, savePage } from '@/lib/pages/save'
 import { db } from '@/lib/db'
 
@@ -248,6 +249,8 @@ function writeSystem(graph: GraphResult, extra: string[] = []): string {
     '너는 사내 지식 그래프와 사내 위키 문서에서 모은 근거만으로 위키 문서를 쓴다.',
     '- "위키 문서에서 찾은 것"의 내용도 그래프와 같은 자격의 근거다. 쓰면 참고 절에',
     '  준 그대로 [[slug|제목]] 형태로 링크한다.',
+    '- [[ ]] 링크는 근거에 [[…]] 형태로 준 것을 그대로 옮길 때만 쓴다. 그래프 개체나',
+    '  파일명을 보고 링크를 새로 만들어내지 마라 — 없는 문서로 가는 죽은 링크가 된다.',
     '',
     '- 아래 근거에 없는 내용은 절대 쓰지 마라. 모르는 것은 "확인되지 않음"이라고 적는다.',
     '- **본문에는 출처를 적지 마라.** [ejkim], [승훈 온톨로지], (출처: …) 같은 표기를',
@@ -327,12 +330,27 @@ export function splitDoc(markdown: string, fallbackTitle: string): Draft {
 
 export type Draft = { title: string; summary: string; content: string }
 
+/**
+ * 생성된 초안의 [[링크]]를 실존 문서와 대조해 정리한다.
+ * 없는 문서 링크는 평문으로, 잘린 대괄호는 제거 — 프롬프트로는 못 막는다(실측).
+ */
+export async function sanitizeDraftLinks(draft: Draft): Promise<Draft> {
+  const targets = parseOutLinks(draft.content)
+  const found = targets.length
+    ? await db.page.findMany({
+        where: { slug: { in: targets }, deletedAt: null },
+        select: { slug: true },
+      })
+    : []
+  return { ...draft, content: sanitizeWikiLinks(draft.content, new Set(found.map((f) => f.slug))) }
+}
+
 /** 4단계 — 스트림을 끝까지 모아 문서 하나로 만든다. */
 export async function writeDoc(request: string, found: Retrieved): Promise<Draft> {
   const stream = writeDocStream(request, found)
   let text = ''
   for await (const chunk of stream.textStream) text += chunk
-  return splitDoc(text, request.slice(0, 60))
+  return sanitizeDraftLinks(splitDoc(text, request.slice(0, 60)))
 }
 
 /**

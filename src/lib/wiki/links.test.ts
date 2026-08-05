@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { parseOutLinks } from './links'
+import { parseOutLinks, sanitizeWikiLinks } from './links'
 
 describe('parseOutLinks', () => {
   it('[[slug]] 형태를 뽑는다', () => {
@@ -134,5 +134,33 @@ describe('rewriteWikiLinks', () => {
 
   it('다른 slug는 그대로 둔다', () => {
     expect(rewriteWikiLinks('[[other]]', 'old', 'new')).toBe('[[other]]')
+  })
+})
+
+describe('sanitizeWikiLinks', () => {
+  const valid = new Set(['a', 'seunghoon/제품'])
+
+  it('실존 문서 링크는 그대로 둔다', () => {
+    expect(sanitizeWikiLinks('본문 [[a]]와 [[seunghoon/제품|제품]]', valid)).toBe(
+      '본문 [[a]]와 [[seunghoon/제품|제품]]',
+    )
+  })
+
+  it('없는 문서 링크는 표시명 평문으로 바꾼다', () => {
+    expect(sanitizeWikiLinks('출처: [[seunghoon/없는문서.pdf|MSDS]] (seunghoon)', valid)).toBe(
+      '출처: MSDS (seunghoon)',
+    )
+    expect(sanitizeWikiLinks('[[ghost]]', valid)).toBe('ghost')
+  })
+
+  it('짝 잃은 [[ 는 그 줄의 대괄호를 걷어낸다', () => {
+    expect(sanitizeWikiLinks('| [[seunghoon/수용성글리세린색소_보라-msds.pdf | 100ml |', valid)).toBe(
+      '| seunghoon/수용성글리세린색소_보라-msds.pdf | 100ml |',
+    )
+  })
+
+  it('여러 줄에서 유효 링크와 잘린 링크를 갈라 처리한다', () => {
+    const input = '멀쩡: [[a]]\n잘림: [[seunghoon/뭔가'
+    expect(sanitizeWikiLinks(input, valid)).toBe('멀쩡: [[a]]\n잘림: seunghoon/뭔가')
   })
 })

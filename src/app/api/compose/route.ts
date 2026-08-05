@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { extractTerms, retrieve, writeDocStream, splitDoc } from '@/lib/rag/compose'
+import { extractTerms, retrieve, writeDocStream, splitDoc, sanitizeDraftLinks } from '@/lib/rag/compose'
 
 /** 리터럴 스캔 + LLM 두 번. 넉넉히 준다. */
 export const maxDuration = 600
@@ -48,7 +48,7 @@ export async function POST(req: Request) {
           text += chunk
           send({ stage: 'delta', text: chunk })
         }
-        send({ stage: 'done', draft: splitDoc(text, ask.slice(0, 60)) })
+        send({ stage: 'done', draft: await sanitizeDraftLinks(splitDoc(text, ask.slice(0, 60))) })
       } catch (e) {
         send({ stage: 'error', error: (e as Error).message })
       } finally {

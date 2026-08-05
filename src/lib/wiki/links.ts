@@ -20,6 +20,35 @@ export function parseOutLinks(content: string): string[] {
   return out
 }
 
+/**
+ * LLM이 생성한 본문의 [[링크]]를 실존 문서 목록과 대조해 정리한다.
+ *
+ * - 실존 slug를 가리키는 완결 링크만 남긴다
+ * - 없는 문서를 가리키는 링크는 표시명 평문으로 바꾼다 — 그래프에만 있는 개체를
+ *   [[seunghoon/…]]처럼 태깅해 죽은 링크가 되는 것을 막는다
+ * - 짝을 잃은 `[[`(생성이 중간에 잘린 경우)는 그 줄의 대괄호를 걷어낸다
+ */
+export function sanitizeWikiLinks(content: string, validSlugs: Set<string>): string {
+  const resolved = content.replace(WIKI_LINK_RE, (whole, inner: string) => {
+    const slug = extractWikiSlug(inner)
+    if (validSlugs.has(slug)) return whole
+    const pipe = inner.indexOf('|')
+    return (pipe >= 0 ? inner.slice(pipe + 1) : inner).trim()
+  })
+
+  // 남은 링크는 전부 유효하다. 줄 안에서 [[와 ]] 개수가 어긋나면 잘린 링크 잔재이므로
+  // 그 줄의 위키 대괄호를 통째로 벗긴다 (유효 링크가 같은 줄에 있으면 같이 벗겨지지만,
+  // 잘린 텍스트가 링크로 오인되는 것보다 낫다).
+  return resolved
+    .split('\n')
+    .map((line) => {
+      const opens = (line.match(/\[\[/g) ?? []).length
+      const closes = (line.match(/\]\]/g) ?? []).length
+      return opens === closes ? line : line.replaceAll('[[', '').replaceAll(']]', '')
+    })
+    .join('\n')
+}
+
 export type Span = { start: number; end: number }
 
 /**
