@@ -1,44 +1,117 @@
 'use client'
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { marked } from 'marked'
 import DOMPurify from 'dompurify'
+import {
+  ChevronDown,
+  ChevronUp,
+  ExternalLink,
+  FileText,
+  MoreHorizontal,
+  Paperclip,
+  RotateCcw,
+  Send,
+  Share2,
+  SlidersHorizontal,
+  X,
+} from 'lucide-react'
+import { Button, IconButton } from '@/components/ui'
 import { normalizeSlug } from '@/lib/wiki/slug'
 
 type SourceStatus = { id: string; name: string; ok: boolean; searchedText?: boolean; error?: string }
 type Draft = { title: string; summary: string; content: string }
 type WikiHit = { slug: string; title: string }
-type Result = {
-  terms: string[]
-  graph: { sources: SourceStatus[]; nodes: unknown[]; textHits: unknown[] }
-  evidence: { source: string; label: string }[]
-  wiki: WikiHit[]
-  draft: Draft
-}
+type Graph = { sources: SourceStatus[]; nodes: unknown[]; textHits: unknown[] }
+
+/** 대화 한 칸. AI 메시지는 스트리밍 중 text가 자라고, 완료되면 draft가 붙는다. */
+type Msg =
+  | { role: 'user'; text: string; time: string }
+  | {
+      role: 'ai'
+      text: string
+      streaming: boolean
+      draft?: Draft
+      wiki?: WikiHit[]
+      graph?: Graph
+      terms?: string[]
+      saved?: string | null
+      error?: string
+    }
 
 const EXAMPLES = [
   '글리세롤이 들어간 제품과 관련 문서를 정리해줘',
   '주식회사 성진과 주고받은 문서를 정리해줘',
 ]
 
+/** 추출된 용어로 만드는 후속 질문. LLM을 더 부르지 않는 결정적 추천이다. */
+function suggestions(terms: string[] | undefined): string[] {
+  const t = terms?.[0]
+  if (!t) return []
+  return [`${t} 시장 규모와 전망을 정리해줘`, `${t}의 안전성과 규제 정보를 알려줘`, `${t} 대체 성분과 비교해줘`]
+}
+
+const now = () =>
+  new Date().toLocaleTimeString('ko-KR', { hour: 'numeric', minute: '2-digit' })
+
 export default function AskPage() {
-  const [request, setRequest] = useState('')
+  const [messages, setMessages] = useState<Msg[]>([])
+  const [input, setInput] = useState('')
   const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [result, setResult] = useState<Result | null>(null)
-  const [streamed, setStreamed] = useState('')
-  const [stage, setStage] = useState<string | null>(null)
-  const [saving, setSaving] = useState(false)
-  const [saved, setSaved] = useState<string | null>(null)
+  const [panel, setPanel] = useState(true)
+  const scrollRef = useRef<HTMLDivElement>(null)
+
+  // 새 내용이 흘러올 때 바닥을 따라간다
+  useEffect(() => {
+    const el = scrollRef.current
+    if (el) el.scrollTop = el.scrollHeight
+  }, [messages])
+
+  const patchLastAi = (patch: Partial<Extract<Msg, { role: 'ai' }>>) =>
+    setMessages((ms) => {
+      const next = [...ms]
+      for (let i = next.length - 1; i >= 0; i--) {
+        if (next[i].role === 'ai') {
+          next[i] = { ...(next[i] as Extract<Msg, { role: 'ai' }>), ...patch }
+          break
+        }
+      }
+      return next
+    })
+
+  const save = async (draft: Draft) => {
+    const post = (slug: string) =>
+      fetch('/api/pages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          slug,
+          title: draft.title,
+          summary: draft.summary,
+          content: draft.content,
+          pageType: 'synthesis',
+          editSource: 'agent',
+        }),
+      })
+    let slug = normalizeSlug(draft.title)
+    let res = await post(slug)
+    if (res.status === 409) {
+      // 같은 이름이 살아 있으면 덮지 않고 접미사로 비켜 저장한다
+      slug = `${slug}-${Date.now().toString(36)}`
+      res = await post(slug)
+    }
+    patchLastAi(res.ok ? { saved: slug } : { saved: null })
+  }
 
   const ask = async (q: string) => {
     const text = q.trim()
-    if (!text) return
+    if (!text || busy) return
     setBusy(true)
-    setError(null)
-    setResult(null)
-    setStreamed('')
-    setStage('용어를 뽑는 중…')
-    setSaved(null)
+    setInput('')
+    setMessages((ms) => [
+      ...ms,
+      { role: 'user', text, time: now() },
+      { role: 'ai', text: '', streaming: true },
+    ])
 
     try {
       const res = await fetch('/api/compose', {
@@ -48,7 +121,7 @@ export default function AskPage() {
       })
       if (!res.ok || !res.body) {
         const body = await res.json().catch(() => ({}))
-        setError(body.error ?? `HTTP ${res.status}`)
+        patchLastAi({ streaming: false, error: body.error ?? `HTTP ${res.status}` })
         return
       }
 
@@ -56,89 +129,35 @@ export default function AskPage() {
       const reader = res.body.getReader()
       const decoder = new TextDecoder()
       let buf = ''
-      let terms: string[] = []
-      let graph: Result['graph'] | null = null
-      let evidence: Result['evidence'] = []
-      let wiki: WikiHit[] = []
       let acc = ''
-
       for (;;) {
         const { done, value } = await reader.read()
         if (done) break
         buf += decoder.decode(value, { stream: true })
         const lines = buf.split('\n')
         buf = lines.pop() ?? ''
-
         for (const line of lines) {
           if (!line.trim()) continue
           const ev = JSON.parse(line)
-          if (ev.stage === 'terms') {
-            terms = ev.terms
-            setStage(`"${terms.join('", "')}" 로 그래프를 조회하는 중…`)
-          } else if (ev.stage === 'graph') {
-            graph = ev.graph
-            evidence = ev.evidence
-            wiki = ev.wiki ?? []
-            const ok = ev.graph.sources.filter((x: SourceStatus) => x.ok).length
-            setStage(`그래프 ${ok}/${ev.graph.sources.length} · 위키 ${wiki.length}건 조회 완료 · 문서를 쓰는 중…`)
-          } else if (ev.stage === 'delta') {
+          if (ev.stage === 'terms') patchLastAi({ terms: ev.terms })
+          else if (ev.stage === 'graph') patchLastAi({ graph: ev.graph, wiki: ev.wiki ?? [] })
+          else if (ev.stage === 'delta') {
             acc += ev.text
-            setStreamed(acc)
+            patchLastAi({ text: acc })
           } else if (ev.stage === 'done') {
-            setResult({ terms, graph: graph!, evidence, wiki, draft: ev.draft })
-            setStage(null)
-            // 완성되면 바로 볼트에 저장한다. 실패하면 수동 저장 버튼이 남는다.
+            patchLastAi({ streaming: false, text: '', draft: ev.draft })
             void save(ev.draft)
-          } else if (ev.stage === 'error') {
-            setError(ev.error)
-          }
+          } else if (ev.stage === 'error') patchLastAi({ streaming: false, error: ev.error })
         }
       }
     } catch (e) {
-      setError((e as Error).message)
+      patchLastAi({ streaming: false, error: (e as Error).message })
     } finally {
       setBusy(false)
-      setStage(null)
     }
   }
 
-  const save = async (draft?: Draft) => {
-    const d = draft ?? result?.draft
-    if (!d) return
-    setSaving(true)
-    setError(null)
-    try {
-      const post = (slug: string) =>
-        fetch('/api/pages', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            slug,
-            title: d.title,
-            summary: d.summary,
-            content: d.content,
-            pageType: 'synthesis',
-            editSource: 'agent',
-          }),
-        })
-
-      let slug = normalizeSlug(d.title)
-      let res = await post(slug)
-      if (res.status === 409) {
-        // 같은 이름 문서가 살아 있으면 덮어쓰지 않고 접미사로 비켜 저장한다
-        slug = `${slug}-${Date.now().toString(36)}`
-        res = await post(slug)
-      }
-      if (res.ok) {
-        setSaved(slug)
-        return
-      }
-      const body = await res.json().catch(() => ({}))
-      setError(body.error ?? `HTTP ${res.status}`)
-    } finally {
-      setSaving(false)
-    }
-  }
+  const lastAi = [...messages].reverse().find((m): m is Extract<Msg, { role: 'ai' }> => m.role === 'ai')
 
   return (
     <>
@@ -146,162 +165,237 @@ export default function AskPage() {
         <div className="tab on">
           <span className="name">자연어로 문서 만들기</span>
         </div>
-        <span className="center">그래프를 SPARQL로 조회해 문서를 씁니다</span>
+        <span className="center">그래프로 SPARQL로 조회해 문서를 씁니다</span>
+        <span className="side">
+          <Button size="sm" onClick={() => setMessages([])} disabled={busy || messages.length === 0}>
+            <RotateCcw size={13} aria-hidden /> 새 대화
+          </Button>
+          <IconButton label="더보기">
+            <MoreHorizontal size={15} />
+          </IconButton>
+        </span>
       </div>
 
-      <div className="doc">
-        <div className="doc-inner">
-          <div style={{ display: 'grid', gap: 8, maxWidth: 760 }}>
+      <div className="chat-wrap">
+        <div className="chat-scroll" ref={scrollRef}>
+          <div className="chat-inner">
+            {messages.length === 0 && (
+              <div style={{ paddingTop: 32 }}>
+                <p className="meta" style={{ marginBottom: 10 }}>
+                  무엇을 정리할까요? 그래프 3개와 위키 문서를 함께 뒤져 출처가 남는 문서를 만듭니다.
+                </p>
+                <div className="chip-row">
+                  {EXAMPLES.map((ex) => (
+                    <button key={ex} className="chip" onClick={() => ask(ex)}>
+                      {ex}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {messages.map((m, i) =>
+              m.role === 'user' ? (
+                <div key={i} className="msg-user">
+                  {m.text}
+                  <span className="stamp">
+                    {m.time} <span aria-label="전송 완료">✓</span>
+                  </span>
+                </div>
+              ) : (
+                <AiMessage key={i} msg={m} onAsk={ask} onSave={save} />
+              ),
+            )}
+          </div>
+        </div>
+
+        {panel && lastAi?.graph && (
+          <ContextPanel graph={lastAi.graph} wiki={lastAi.wiki ?? []} onClose={() => setPanel(false)} />
+        )}
+
+        <div className="composer">
+          <div className="composer-box">
+            <IconButton label="첨부 (준비 중)" disabled>
+              <Paperclip size={15} />
+            </IconButton>
             <textarea
-              value={request}
-              onChange={(e) => setRequest(e.target.value)}
-              rows={3}
-              placeholder="무엇을 정리할까요? 예: 글리세롤이 들어간 제품과 관련 문서를 정리해줘"
+              rows={1}
+              value={input}
+              placeholder="문서를 만들고 싶은 내용을 입력하세요..."
+              onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => {
-                if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') ask(request)
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault()
+                  ask(input)
+                }
               }}
             />
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-              <button className="primary" onClick={() => ask(request)} disabled={busy || !request.trim()}>
-                {busy ? '찾는 중…' : '문서 만들기'}
-              </button>
-              <span className="meta">Ctrl+Enter</span>
-              <span className="grow" style={{ flex: 1 }} />
-              {EXAMPLES.map((ex) => (
-                <button
-                  key={ex}
-                  className="quiet"
-                  disabled={busy}
-                  onClick={() => {
-                    setRequest(ex)
-                    ask(ex)
-                  }}
-                >
-                  {ex.slice(0, 18)}…
-                </button>
-              ))}
-            </div>
-            {error && <p className="notice">{error}</p>}
+            <IconButton label="옵션 (준비 중)" disabled>
+              <SlidersHorizontal size={15} />
+            </IconButton>
+            <button className="send" aria-label="전송" disabled={busy || !input.trim()} onClick={() => ask(input)}>
+              <Send size={15} />
+            </button>
           </div>
-
-          {stage && (
-            <p className="meta" style={{ marginTop: 20 }}>
-              {stage}
-            </p>
-          )}
-
-          {/* 다 쓰기 전까지는 흘러오는 글자를 그대로 보여준다. 몇 분을 빈 화면으로
-              기다리게 하지 않으려는 것이라 마크다운 렌더는 완성 후에 한다. */}
-          {!result && streamed && (
-            <pre
-              style={{
-                marginTop: 16,
-                maxWidth: 760,
-                whiteSpace: 'pre-wrap',
-                wordBreak: 'break-word',
-                fontFamily: 'inherit',
-                fontSize: 14,
-                lineHeight: 1.75,
-              }}
-            >
-              {streamed}
-            </pre>
-          )}
-
-          {result && <Draft result={result} onSave={save} saving={saving} saved={saved} />}
+          <p className="hint">Enter로 전송, Shift+Enter로 줄바꿈</p>
         </div>
       </div>
     </>
   )
 }
 
-function Draft({
-  result,
+function AiMessage({
+  msg,
+  onAsk,
   onSave,
-  saving,
-  saved,
 }: {
-  result: Result
-  onSave: () => void
-  saving: boolean
-  saved: string | null
+  msg: Extract<Msg, { role: 'ai' }>
+  onAsk: (q: string) => void
+  onSave: (d: Draft) => void
 }) {
-  const html = DOMPurify.sanitize(marked.parse(result.draft.content) as string)
+  const [expanded, setExpanded] = useState(false)
 
   return (
-    <div style={{ marginTop: 24, maxWidth: 760 }}>
-      <div className="props">
-        <div className="props-title">이 문서를 만든 근거</div>
-        <div className="prop-row">
-          <span className="prop-key">검색어</span>
-          <span className="prop-val">
-            {result.terms.map((t) => (
-              <span key={t} className="tag">
-                {t}
-              </span>
-            ))}
-          </span>
-        </div>
-        <div className="prop-row">
-          <span className="prop-key">그래프</span>
-          <span className="prop-val">
-            {result.graph.sources.map((s) => (
-              <span key={s.id} className="tag" title={s.error ?? ''}>
-                {s.ok ? '● ' : '○ '}
-                {s.name}
-                {s.searchedText ? ' (본문검색)' : ''}
-              </span>
-            ))}
-          </span>
-        </div>
-        <div className="prop-row">
-          <span className="prop-key">근거</span>
-          <span className="prop-val">
-            개체 {result.evidence.length}건 · 관계 {result.graph.nodes.length}건 · 본문
-            {' '}
-            {result.graph.textHits.length}건 · 위키 문서 {result.wiki.length}건
-          </span>
-        </div>
-        {result.wiki.length > 0 && (
-          <div className="prop-row">
-            <span className="prop-key">위키 근거</span>
-            <span className="prop-val">
-              {result.wiki.map((w) => (
-                <a key={w.slug} className="tag" href={`/wiki/${w.slug}`}>
-                  {w.title}
-                </a>
-              ))}
-            </span>
-          </div>
+    <div className="msg-ai">
+      <span className="ai-icon">
+        <Share2 size={15} aria-hidden />
+      </span>
+      <div className="body">
+        {msg.error && <p className="notice">{msg.error}</p>}
+
+        {msg.streaming && !msg.text && <p className="meta">그래프와 위키를 조회하는 중…</p>}
+
+        {/* 스트리밍 중에는 흘러오는 마크다운을 그대로 보여준다 — 빈 화면 4분 방지 */}
+        {msg.streaming && msg.text && (
+          <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontFamily: 'inherit', margin: 0 }}>
+            {msg.text}
+          </pre>
         )}
-      </div>
 
-      {result.graph.sources.some((s) => !s.ok) && (
-        <p className="notice">
-          조회하지 못한 그래프가 있습니다. 빠진 내용은 &ldquo;사실이 없다&rdquo;가 아니라
-          &ldquo;확인하지 못했다&rdquo;입니다.
-        </p>
-      )}
-
-      <h1 style={{ fontSize: '1.8rem', margin: '18px 0 4px' }}>{result.draft.title}</h1>
-      <p className="meta">{result.draft.summary}</p>
-
-      <article className="prose" dangerouslySetInnerHTML={{ __html: html }} />
-
-      <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 20 }}>
-        {saved ? (
+        {msg.draft && (
           <>
-            <span className="meta">저장했습니다.</span>
-            <a className="btn" href={`/wiki/${saved}`}>
-              문서 열기
-            </a>
+            <p style={{ margin: '0 0 4px' }}>
+              요청하신 내용을 바탕으로 &lsquo;{msg.draft.title}&rsquo;를 정리했습니다. 아래는 문서의 개요입니다.
+            </p>
+            <div className="doc-card">
+              <div className="doc-card-head">
+                <FileText size={15} aria-hidden style={{ color: 'var(--text-faint)', flexShrink: 0 }} />
+                <span className="t">{msg.draft.title}</span>
+                <span className="badge-draft">초안</span>
+                {msg.saved ? (
+                  <a className="btn" style={{ height: 28, fontSize: 12.5 }} href={`/wiki/${msg.saved}`}>
+                    <ExternalLink size={13} aria-hidden /> 저장됨 · 열기
+                  </a>
+                ) : msg.saved === null ? (
+                  <Button size="sm" variant="primary" onClick={() => onSave(msg.draft!)}>
+                    문서로 저장
+                  </Button>
+                ) : (
+                  <span className="meta">저장 중…</span>
+                )}
+              </div>
+              <div
+                className={`doc-card-body prose${expanded ? '' : ' clamped'}`}
+                dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(marked.parse(msg.draft.content) as string) }}
+              />
+              <div className="doc-card-foot">
+                <button className="quiet" onClick={() => setExpanded((v) => !v)}>
+                  {expanded ? (
+                    <>
+                      접기 <ChevronUp size={13} aria-hidden />
+                    </>
+                  ) : (
+                    <>
+                      더보기 <ChevronDown size={13} aria-hidden />
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {(msg.wiki?.length ?? 0) > 0 && (
+              <div className="chip-row">
+                <span className="lbl">출처</span>
+                {msg.wiki!.slice(0, 3).map((w) => (
+                  <a key={w.slug} className="chip" href={`/wiki/${w.slug}`}>
+                    <FileText size={12} aria-hidden /> {w.title}
+                  </a>
+                ))}
+                {msg.wiki!.length > 3 && <span className="chip">+{msg.wiki!.length - 3}개 더보기</span>}
+              </div>
+            )}
+
+            {suggestions(msg.terms).length > 0 && (
+              <div className="chip-row">
+                <span className="lbl">추천 프롬프트</span>
+                {suggestions(msg.terms).map((s) => (
+                  <button key={s} className="chip" onClick={() => onAsk(s)}>
+                    {s}
+                  </button>
+                ))}
+              </div>
+            )}
           </>
-        ) : (
-          <button className="primary" onClick={onSave} disabled={saving}>
-            {saving ? '저장 중…' : '볼트에 저장'}
-          </button>
         )}
       </div>
     </div>
+  )
+}
+
+function ContextPanel({
+  graph,
+  wiki,
+  onClose,
+}: {
+  graph: Graph
+  wiki: WikiHit[]
+  onClose: () => void
+}) {
+  const [tab, setTab] = useState<'docs' | 'graph'>('docs')
+
+  return (
+    <aside className="ctx-panel">
+      <div className="ctx-head">
+        관련 문서 &amp; 그래프 컨텍스트
+        <span style={{ flex: 1 }} />
+        <IconButton label="닫기" onClick={onClose}>
+          <X size={13} />
+        </IconButton>
+      </div>
+      <div className="ctx-tabs">
+        <button className={tab === 'docs' ? 'on' : ''} onClick={() => setTab('docs')}>
+          관련 문서
+        </button>
+        <button className={tab === 'graph' ? 'on' : ''} onClick={() => setTab('graph')}>
+          그래프 컨텍스트
+        </button>
+      </div>
+      <div className="ctx-body">
+        {tab === 'docs' ? (
+          wiki.length > 0 ? (
+            wiki.map((w) => (
+              <a key={w.slug} href={`/wiki/${w.slug}`}>
+                <FileText size={13} aria-hidden /> {w.title}
+              </a>
+            ))
+          ) : (
+            <span className="meta">근거로 쓴 위키 문서 없음</span>
+          )
+        ) : (
+          <>
+            {graph.sources.map((s) => (
+              <div key={s.id} style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                <span style={{ color: s.ok ? 'var(--accent)' : 'var(--danger)', fontSize: 9 }}>●</span>
+                <span style={{ color: 'var(--text-dim)' }}>{s.name}</span>
+                {s.searchedText && <span className="meta">본문검색</span>}
+              </div>
+            ))}
+            <span className="meta">
+              개체 {graph.nodes.length}건 · 본문 매치 {graph.textHits.length}건
+            </span>
+          </>
+        )}
+      </div>
+    </aside>
   )
 }
