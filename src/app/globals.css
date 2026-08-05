@@ -127,6 +127,9 @@ kbd {
 .vault {
   display: grid;
   grid-template-columns: var(--rail) var(--tree) 1fr;
+  /* minmax(0,1fr) — 긴 문서가 행을 늘려 화면 밖으로 밀어내지 못하게 잠근다.
+     이게 없으면 .doc이 내용 높이만큼 자라 스크롤이 아예 안 생긴다. */
+  grid-template-rows: minmax(0, 1fr);
   height: 100%;
 }
 
@@ -244,6 +247,7 @@ kbd {
   display: flex;
   flex-direction: column;
   min-width: 0;
+  min-height: 0;
   background: var(--tree-bg);
   border-right: 1px solid var(--line);
 }
@@ -289,6 +293,7 @@ kbd {
   display: flex;
   flex-direction: column;
   min-width: 0;
+  min-height: 0;
   background: var(--main-bg);
 }
 
