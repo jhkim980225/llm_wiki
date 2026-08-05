@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { wouldCycle, recomputePagePaths } from '@/lib/folders/tree'
+import { wouldCycle } from '@/lib/folders/tree'
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -25,15 +25,8 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     },
   })
 
-  // 이름이나 위치가 바뀌면 이 폴더와 모든 자손의 페이지 경로 캐시를 다시 새긴다.
-  const stack = [id]
-  while (stack.length > 0) {
-    const current = stack.pop()!
-    await recomputePagePaths(current)
-    const children = await db.folder.findMany({ where: { parentId: current }, select: { id: true } })
-    stack.push(...children.map((c) => c.id))
-  }
-
+  // 경로 캐시가 없어졌다. 폴더 이름/위치는 folder 행 한 줄만 바뀌고, 페이지 경로는
+  // 조회 시 folderId에서 유도한다. 예전엔 자손 7만 건을 다시 써서 수십 초 걸렸다.
   return NextResponse.json(updated)
 }
 
@@ -41,7 +34,7 @@ export async function DELETE(_: Request, { params }: { params: Promise<{ id: str
   const { id } = await params
 
   const [childCount, pageCount] = await Promise.all([
-    db.folder.count({ where: { parentId: id } }),
+    db.folder.count({ where: { parentId: id, deletedAt: null } }),
     db.page.count({ where: { folderId: id, deletedAt: null } }),
   ])
   if (childCount > 0 || pageCount > 0) {
@@ -51,6 +44,7 @@ export async function DELETE(_: Request, { params }: { params: Promise<{ id: str
     )
   }
 
-  await db.folder.delete({ where: { id } })
+  // 휴지통으로 — 7일 뒤 퍼지된다 (lib/trash.ts)
+  await db.folder.update({ where: { id }, data: { deletedAt: new Date() } })
   return NextResponse.json({ ok: true })
 }

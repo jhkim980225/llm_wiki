@@ -7,19 +7,44 @@ import { IMPORT_SOURCE } from '@/lib/ontology/import'
 export const maxDuration = 300
 
 export async function GET() {
-  const counts = await db.page.groupBy({
-    by: ['categoryPath'],
-    where: { deletedAt: null, lastEditSource: IMPORT_SOURCE },
-    _count: true,
-  })
+  // 소스별 페이지 수 = 그 소스의 최상위 폴더(name === source.name) 서브트리 안 적재 페이지 수.
+  // 경로 캐시 컬럼을 없앴으므로 folderId를 폴더 트리로 접어 센다. 폴더 수는 적어 저렴하다.
+  const [folders, counts] = await Promise.all([
+    db.folder.findMany({ select: { id: true, name: true, parentId: true } }),
+    db.page.groupBy({
+      by: ['folderId'],
+      where: { deletedAt: null, lastEditSource: IMPORT_SOURCE },
+      _count: true,
+    }),
+  ])
+
+  const countByFolder = new Map<string | null, number>(
+    counts.map((c) => [c.folderId, c._count]),
+  )
+  const childrenOf = new Map<string, string[]>()
+  for (const f of folders) {
+    if (!f.parentId) continue
+    const list = childrenOf.get(f.parentId) ?? []
+    list.push(f.id)
+    childrenOf.set(f.parentId, list)
+  }
+  const subtreeCount = (rootId: string): number => {
+    let total = countByFolder.get(rootId) ?? 0
+    for (const child of childrenOf.get(rootId) ?? []) total += subtreeCount(child)
+    return total
+  }
+
   return NextResponse.json({
-    sources: SOURCES.map((s) => ({
-      id: s.id,
-      name: s.name,
-      url: s.url,
-      dataset: s.dataset,
-      pages: counts.find((c) => c.categoryPath[0] === s.name)?._count ?? 0,
-    })),
+    sources: SOURCES.map((s) => {
+      const root = folders.find((f) => f.parentId === null && f.name === s.name)
+      return {
+        id: s.id,
+        name: s.name,
+        url: s.url,
+        dataset: s.dataset,
+        pages: root ? subtreeCount(root.id) : 0,
+      }
+    }),
   })
 }
 

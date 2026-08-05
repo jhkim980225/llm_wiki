@@ -12,7 +12,11 @@ export class VersionConflictError extends Error {
   }
 }
 
-/** before에서 사라진 대상의 백링크를 빼고, after에 새로 생긴 대상에 더한다. */
+/**
+ * before에서 사라진 대상의 백링크를 빼고, after에 새로 생긴 대상에 더한다.
+ * 대상이 수백 개인 허브 문서에서도 왕복이 2번으로 고정되도록 배열 연산 한 방씩 쓴다
+ * (대상마다 findUnique+update 하던 2N 왕복 제거). 없는 대상은 = ANY로 자연히 건너뛴다.
+ */
 export async function syncBacklinks(
   tx: Prisma.TransactionClient,
   slug: string,
@@ -22,18 +26,15 @@ export async function syncBacklinks(
   const removed = before.filter((s) => !after.includes(s))
   const added = after.filter((s) => !before.includes(s))
 
-  for (const target of removed) {
-    const p = await tx.page.findUnique({ where: { slug: target } })
-    if (!p) continue
-    await tx.page.update({
-      where: { slug: target },
-      data: { inLinks: p.inLinks.filter((s) => s !== slug) },
-    })
+  if (removed.length > 0) {
+    await tx.$executeRaw`
+      UPDATE "Page" SET "inLinks" = array_remove("inLinks", ${slug})
+      WHERE slug = ANY(${removed}::text[])`
   }
-  for (const target of added) {
-    const p = await tx.page.findUnique({ where: { slug: target } })
-    if (!p || p.inLinks.includes(slug)) continue
-    await tx.page.update({ where: { slug: target }, data: { inLinks: [...p.inLinks, slug] } })
+  if (added.length > 0) {
+    await tx.$executeRaw`
+      UPDATE "Page" SET "inLinks" = array_append("inLinks", ${slug})
+      WHERE slug = ANY(${added}::text[]) AND NOT (${slug} = ANY("inLinks"))`
   }
 }
 
@@ -90,6 +91,7 @@ export type SaveInput = {
   summary?: string
   pageType?: string
   status?: string
+  aliases?: string[]
   editSource?: 'user' | 'agent' | 'revert'
 }
 
@@ -137,6 +139,8 @@ export async function savePage(input: SaveInput): Promise<Page> {
       data: {
         ...next,
         outLinks,
+        // aliases는 가시 필드가 아니라 version을 올리지 않는다(메타 편집).
+        ...(input.aliases !== undefined ? { aliases: input.aliases } : {}),
         version: visibleChanged ? current.version + 1 : current.version,
         lastEditSource: visibleChanged ? (input.editSource ?? 'user') : current.lastEditSource,
       },

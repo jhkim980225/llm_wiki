@@ -100,9 +100,6 @@ export async function importOntology(
     outLinks: p.outLinks,
     inLinks: inLinks.get(p.slug) ?? [],
     folderId,
-    categoryPath: [source.name],
-    wikiPath: `${source.name}/${p.title}`,
-    depth: 1,
     lastEditSource: IMPORT_SOURCE,
   })
 

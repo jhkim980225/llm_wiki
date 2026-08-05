@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { savePage, VersionConflictError } from '@/lib/pages/save'
+import { embedPageSafe } from '@/lib/pages/embedding'
 
 /** [...slug] 없이 슬래시 포함 slug를 다루기 위해 경로 조각은 URL 인코딩된 채로 온다. */
 const decode = (s: string) => decodeURIComponent(s)
@@ -10,15 +11,18 @@ export async function GET(_: Request, { params }: { params: Promise<{ slug: stri
   const page = await db.page.findFirst({ where: { slug, deletedAt: null } })
   if (!page) return NextResponse.json({ error: 'not found' }, { status: 404 })
 
-  const backlinks = await db.page.findMany({
-    where: { slug: { in: page.inLinks }, deletedAt: null },
-    select: { slug: true, title: true },
-  })
-  // 본문이 가리키지만 아직 없는 페이지 — UI가 붉은 링크로 표시한다.
-  const existing = await db.page.findMany({
-    where: { slug: { in: page.outLinks }, deletedAt: null },
-    select: { slug: true },
-  })
+  // 백링크와 죽은 링크 조회는 서로 독립이라 함께 던진다.
+  const [backlinks, existing] = await Promise.all([
+    db.page.findMany({
+      where: { slug: { in: page.inLinks }, deletedAt: null },
+      select: { slug: true, title: true },
+    }),
+    // 본문이 가리키지만 아직 없는 페이지 — UI가 붉은 링크로 표시한다.
+    db.page.findMany({
+      where: { slug: { in: page.outLinks }, deletedAt: null },
+      select: { slug: true },
+    }),
+  ])
   const deadLinks = page.outLinks.filter((s) => !existing.some((e) => e.slug === s))
 
   return NextResponse.json({ ...page, backlinks, deadLinks })
@@ -31,7 +35,10 @@ export async function PUT(req: Request, { params }: { params: Promise<{ slug: st
     return NextResponse.json({ error: 'expectedVersion is required' }, { status: 400 })
   }
   try {
-    return NextResponse.json(await savePage({ ...body, slug }))
+    const saved = await savePage({ ...body, slug })
+    // 임베딩은 응답을 막지 않는다(fire-and-forget).
+    void embedPageSafe(saved)
+    return NextResponse.json(saved)
   } catch (e) {
     if (e instanceof VersionConflictError) {
       return NextResponse.json(
@@ -51,15 +58,13 @@ export async function DELETE(_: Request, { params }: { params: Promise<{ slug: s
   const deleted = await db.$transaction(async (tx) => {
     const page = await tx.page.findFirst({ where: { slug, deletedAt: null } })
     if (!page) return false
-    // 이 페이지가 걸어둔 백링크를 대상에서 걷어낸다. 반대로 이 페이지를 가리키던
-    // 링크는 남겨둔다 — 원본 문서에는 여전히 [[slug]]가 있고, UI가 죽은 링크로 표시한다.
-    for (const target of page.outLinks) {
-      const t = await tx.page.findUnique({ where: { slug: target } })
-      if (!t) continue
-      await tx.page.update({
-        where: { slug: target },
-        data: { inLinks: t.inLinks.filter((s) => s !== slug) },
-      })
+    // 이 페이지가 걸어둔 백링크를 대상에서 걷어낸다(대상마다 하던 N 왕복을 한 방으로).
+    // 반대로 이 페이지를 가리키던 링크는 남겨둔다 — 원본 문서에는 여전히 [[slug]]가
+    // 있고, UI가 죽은 링크로 표시한다.
+    if (page.outLinks.length > 0) {
+      await tx.$executeRaw`
+        UPDATE "Page" SET "inLinks" = array_remove("inLinks", ${slug})
+        WHERE slug = ANY(${page.outLinks}::text[])`
     }
     await tx.page.update({ where: { slug }, data: { deletedAt: new Date() } })
     return true

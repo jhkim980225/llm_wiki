@@ -2,7 +2,10 @@ import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 
 export async function GET() {
-  const items = await db.folder.findMany({ orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }] })
+  const items = await db.folder.findMany({
+    where: { deletedAt: null },
+    orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
+  })
   return NextResponse.json({ items })
 }
 
@@ -11,7 +14,7 @@ export async function POST(req: Request) {
   if (!body?.name) return NextResponse.json({ error: 'name is required' }, { status: 400 })
 
   const parentId: string | null = body.parentId ?? null
-  if (parentId && !(await db.folder.findUnique({ where: { id: parentId } }))) {
+  if (parentId && !(await db.folder.findFirst({ where: { id: parentId, deletedAt: null } }))) {
     return NextResponse.json({ error: 'parent folder not found' }, { status: 404 })
   }
 

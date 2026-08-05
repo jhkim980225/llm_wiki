@@ -29,11 +29,12 @@ COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
-# 마이그레이션을 컨테이너 안에서 돌리기 위해 prisma 스키마와 엔진을 함께 싣는다.
+# 런타임에 필요한 것은 query engine(.prisma)과 클라이언트뿐이다.
+# prisma CLI(70MB)와 @prisma/engines(schema-engine, ~100MB)는 싣지 않는다 —
+# 마이그레이션은 전용 이미지(Dockerfile.migrate)가 돈다.
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
-COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
-COPY --from=builder /app/node_modules/prisma ./node_modules/prisma
+COPY --from=builder /app/node_modules/@prisma/client ./node_modules/@prisma/client
 
 USER nextjs
 EXPOSE 3000

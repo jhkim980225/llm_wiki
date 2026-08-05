@@ -48,10 +48,10 @@ export function RevisionDrawer({
 
   /** 사람·에이전트·되돌리기를 한눈에 구분한다. */
   const sourceMark: Record<string, string> = {
-    user: '✎ 사람',
+    user: '사람',
     agent: '⌬ 에이전트',
     revert: '↺ 되돌림',
-    pipeline: '⚙ 파이프라인',
+    pipeline: '파이프라인',
   }
 
   return (

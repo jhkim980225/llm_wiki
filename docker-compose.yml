@@ -1,6 +1,7 @@
 services:
   db:
-    image: postgres:16
+    # pgvector 확장 포함 (의미검색용). 데이터는 postgres:16과 동일 PG16이라 볼륨 호환.
+    image: pgvector/pgvector:pg16
     environment:
       POSTGRES_PASSWORD: wiki
       POSTGRES_USER: wiki

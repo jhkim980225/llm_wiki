@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { db } from '@/lib/db'
-import { wouldCycle, folderPath, recomputePagePaths } from './tree'
+import { wouldCycle, folderPath } from './tree'
 
 beforeEach(async () => {
   await db.pageRevision.deleteMany()
@@ -53,20 +53,5 @@ describe('folderPath', () => {
 
   it('루트는 빈 배열', async () => {
     expect(await folderPath(null)).toEqual([])
-  })
-})
-
-describe('recomputePagePaths', () => {
-  it('폴더의 페이지에 categoryPath와 depth를 다시 새긴다', async () => {
-    const a = '11111111-1111-1111-1111-111111111111'
-    await mkFolder(a, 'AI')
-    await db.page.create({ data: { slug: 'p', title: 'P', folderId: a, outLinks: [], inLinks: [] } })
-
-    await recomputePagePaths(a)
-
-    const p = await db.page.findUnique({ where: { slug: 'p' } })
-    expect(p!.categoryPath).toEqual(['AI'])
-    expect(p!.depth).toBe(1)
-    expect(p!.wikiPath).toBe('AI/P')
   })
 })

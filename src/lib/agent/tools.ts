@@ -4,7 +4,9 @@ import { db } from '@/lib/db'
 import { savePage, VersionConflictError, createOrRevivePage } from '@/lib/pages/save'
 import { renamePage } from '@/lib/pages/rename'
 import { normalizeSlug } from '@/lib/wiki/slug'
-import { searchEntities, nodeAttributes } from '@/lib/fuseki/client'
+import { searchGraphs, nodeAttributes } from '@/lib/fuseki/client'
+import { findSource } from '@/lib/ontology/source'
+import { embed, toVectorLiteral } from '@/lib/llm/embed'
 
 /** LLM 컨텍스트를 지키기 위한 페이지 읽기 상한 (문자 수). */
 export const READ_BUDGET = 12000
@@ -16,6 +18,40 @@ export function budgetContent(text: string): { text: string; truncated: boolean 
 
 /** 에이전트 쓰기는 전부 이 값으로 기록돼 리비전 이력에서 사람 편집과 구분된다. */
 const AGENT = 'agent' as const
+
+/** 속성까지 읽을 개체 수. 회의록 본문 같은 긴 리터럴이라 몇 개만 읽어도 컨텍스트를 먹는다. */
+const ATTR_NODES = 5
+
+export type Attributed = {
+  uri: string
+  label: string
+  source: string
+  attributes: { name: string; value: string }[]
+}
+
+/**
+ * 개체 몇 개의 속성을 동시에 읽는다. 그래프에서 근거(회의록 본문·문서 전문)를
+ * 꺼내는 통로라 RAG와 채팅 툴이 같은 함수를 쓴다. 실패한 개체는 조용히 빠진다.
+ */
+export async function attributesFor(
+  targets: { uri: string; label: string; source: string }[],
+  limit = ATTR_NODES,
+): Promise<Attributed[]> {
+  // 같은 개체가 여러 술어로 걸릴 수 있어 URI로 접는다.
+  const unique = [...new Map(targets.map((t) => [t.uri, t])).values()].slice(0, limit)
+
+  const settled = await Promise.allSettled(
+    unique.map(async (t) => {
+      const src = findSource(t.source)
+      if (!src) return null
+      return { ...t, attributes: await nodeAttributes(t.uri, src) }
+    }),
+  )
+
+  return settled.flatMap((r) =>
+    r.status === 'fulfilled' && r.value ? [r.value as Attributed] : [],
+  )
+}
 
 export const wikiTools = {
   wiki_search: tool({
@@ -37,6 +73,29 @@ export const wikiTools = {
         select: { slug: true, title: true, summary: true, pageType: true },
         take: limit,
       }),
+  }),
+
+  wiki_semantic_search: tool({
+    description:
+      '의미(임베딩)로 위키 페이지를 검색한다. 정확한 단어가 안 겹쳐도 뜻이 가까운 문서를 찾는다. 키워드가 애매하거나 관련 개념을 넓게 모을 때 wiki_search 대신 쓴다.',
+    inputSchema: z.object({
+      query: z.string().describe('찾고 싶은 내용/개념'),
+      limit: z.number().int().min(1).max(20).default(10),
+    }),
+    execute: async ({ query, limit }) => {
+      try {
+        const vec = toVectorLiteral(await embed(query))
+        return await db.$queryRaw`
+          SELECT slug, title, summary, "pageType",
+                 1 - (embedding <=> ${vec}::vector) AS score
+          FROM "Page"
+          WHERE "deletedAt" IS NULL AND embedding IS NOT NULL
+          ORDER BY embedding <=> ${vec}::vector
+          LIMIT ${limit}`
+      } catch (e) {
+        return { error: `semantic search unavailable: ${(e as Error).message}` }
+      }
+    },
   }),
 
   wiki_read_page: tool({
@@ -155,13 +214,10 @@ export const wikiTools = {
       if (!p) return { error: `page not found: ${slug}` }
 
       await db.$transaction(async (tx) => {
-        for (const targetSlug of p.outLinks) {
-          const t = await tx.page.findUnique({ where: { slug: targetSlug } })
-          if (!t) continue
-          await tx.page.update({
-            where: { slug: targetSlug },
-            data: { inLinks: t.inLinks.filter((s) => s !== slug) },
-          })
+        if (p.outLinks.length > 0) {
+          await tx.$executeRaw`
+            UPDATE "Page" SET "inLinks" = array_remove("inLinks", ${slug})
+            WHERE slug = ANY(${p.outLinks}::text[])`
         }
         await tx.page.update({ where: { slug }, data: { deletedAt: new Date() } })
       })
@@ -203,22 +259,30 @@ export const wikiTools = {
     },
   }),
 
+  /** 속성까지 가져올 개체 수. 회의록 본문 같은 긴 리터럴이라 몇 개만 읽어도 컨텍스트를 먹는다. */
   query_knowledge_graph: tool({
-    description: '외부 Fuseki 지식 그래프에서 개체와 관계를 조회한다. 위키 본문에 없는 관계를 물을 때 쓴다.',
+    description:
+      '사내 지식 그래프 3개(이메일 온톨로지·카카오 지식그래프·승훈 온톨로지)에 한 번에 물어 개체와 관계를 가져온다. ' +
+      '개체 이름으로 먼저 찾고, 이름으로 못 찾으면 문서 본문·속성 텍스트까지 뒤져 textHits로 돌려준다. ' +
+      '결과마다 출처(source)가 붙는다. 위키 본문에 없는 사실을 확인할 때 쓴다.',
     inputSchema: z.object({
       labels: z.array(z.string()).min(1).describe('찾을 개체 이름들'),
-      withAttributes: z.boolean().default(false).describe('첫 개체의 속성까지 가져올지'),
+      withAttributes: z
+        .boolean()
+        .default(false)
+        .describe('찾은 개체들의 속성(회의록 본문 등 긴 텍스트 포함)까지 읽을지'),
     }),
     execute: async ({ labels, withAttributes }) => {
-      try {
-        const graph = await searchEntities(labels)
-        if (!withAttributes || graph.nodes.length === 0) return graph
-        const attributes = await nodeAttributes(graph.nodes[0].uri)
-        return { ...graph, attributes }
-      } catch (e) {
-        // Fuseki가 죽어도 대화는 계속돼야 한다.
-        return { nodes: [], edges: [], error: (e as Error).message }
-      }
+      // 한 소스가 죽어도 나머지는 돌려준다. searchGraphs가 소스별 성패를 함께 준다.
+      const graph = await searchGraphs(labels)
+      if (!withAttributes) return graph
+
+      // 라벨로 못 찾았을 때는 nodes가 비고 textHits만 찬다("글리세롤"이 그 경우다).
+      // 거기서도 속성을 읽어야 근거가 생긴다.
+      const targets = graph.nodes.length > 0 ? graph.nodes : graph.textHits
+      if (targets.length === 0) return graph
+
+      return { ...graph, attributes: await attributesFor(targets) }
     },
   }),
 }

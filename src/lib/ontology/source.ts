@@ -28,6 +28,15 @@ export const RDFS_LABEL = 'http://www.w3.org/2000/01/rdf-schema#label'
  * 주의: NodePort라도 **파드가 도는 노드**로 붙어야 하는 것이 있다. ejkim-ontology는
  * 네임스페이스에 default-deny NetworkPolicy가 걸려 있어 다른 노드를 거쳐 오는 트래픽은
  * 막히고, 파드가 있는 fedaworker12(192.168.0.114)로 직접 가면 통과한다.
+ *
+ * kakao(30301)는 **개발 PC에서만** 안 붙는다. 서비스도 파드도 멀쩡하다(실측 2026-08-04:
+ * fuseki-kakao-0 Running, 엔드포인트 정상, fedaworker12 — ejkim과 같은 노드).
+ * 정책의 허용 대역 차이 하나뿐이다:
+ *   fuseki-allow-required-traffic (30303) → 192.168.0.0/16 + 10.8.0.0/24 (VPN)
+ *   fuseki-kakao-allow            (30301) → 192.168.0.0/16 만
+ * VPN 클라이언트(10.8.0.x)가 빠져 있어 패킷이 조용히 버려진다.
+ * 클러스터 안에서 NodePort로 부르면 노드 IP로 SNAT돼 192.168.0.0/16에 걸려 통과한다.
+ * 개발 PC에서도 쓰려면 소유자에게 10.8.0.0/24 추가를 요청해야 한다.
  */
 export const SOURCES: OntologySource[] = [
   {
@@ -63,6 +72,12 @@ export const SOURCES: OntologySource[] = [
     labelPredicate: RDFS_LABEL,
   },
 ]
+
+/**
+ * LLM이 실시간으로 물어보는 소스. weknora는 이 앱 자신의 데이터셋이고 비어 있어서
+ * 지식 출처가 아니다 — 적재 대상으로만 남긴다.
+ */
+export const QUERY_SOURCES: OntologySource[] = SOURCES.filter((s) => s.id !== 'weknora')
 
 export function findSource(id: string): OntologySource | undefined {
   return SOURCES.find((s) => s.id === id)

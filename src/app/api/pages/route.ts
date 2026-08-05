@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { Prisma } from '@prisma/client'
 import { db } from '@/lib/db'
 import { createOrRevivePage } from '@/lib/pages/save'
+import { embedPageSafe } from '@/lib/pages/embedding'
 
 const MAX_LIMIT = 200
 
@@ -47,6 +48,8 @@ export async function POST(req: Request) {
       folderId: body.folderId,
       editSource: body.editSource,
     })
+    // 임베딩은 응답을 막지 않는다(fire-and-forget). 실패는 embedPageSafe가 삼킨다.
+    void embedPageSafe(page)
     return NextResponse.json(page, { status: 201 })
   } catch (e) {
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {

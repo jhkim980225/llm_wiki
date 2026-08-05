@@ -1,10 +1,19 @@
 'use client'
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
-import { usePathname } from 'next/navigation'
+import { useState, type ReactNode } from 'react'
+import { usePathname, useRouter } from 'next/navigation'
+import {
+  FileText,
+  Home,
+  MessageSquareText,
+  Settings as SettingsIcon,
+  Share2,
+  Sparkles,
+  Import,
+  Trash2,
+} from 'lucide-react'
+import { SidebarItem } from '@/components/ui'
 import { FileTree } from './FileTree'
-
-type Hit = { slug: string; title: string; summary: string }
-type Panel = 'files' | 'search'
+import { Settings } from './Settings'
 
 /** 현재 열린 문서의 slug. 경로가 /wiki/a/b 면 "a/b". */
 function slugFromPath(pathname: string): string {
@@ -16,140 +25,72 @@ function slugFromPath(pathname: string): string {
     .join('/')
 }
 
+const IC = 17 // 메뉴 아이콘 크기 (docs/design.md)
+
 export function Vault({ children }: { children: ReactNode }) {
   const pathname = usePathname()
   const activeSlug = slugFromPath(pathname)
 
-  const [panel, setPanel] = useState<Panel>('files')
   const [collapsed, setCollapsed] = useState(false)
-  const [theme, setTheme] = useState<'dark' | 'light'>('dark')
+  const [settings, setSettings] = useState(false)
 
-  const [q, setQ] = useState('')
-  const [hits, setHits] = useState<Hit[]>([])
-  const [searching, setSearching] = useState(false)
-  const searchRef = useRef<HTMLInputElement>(null)
+  const router = useRouter()
 
-  useEffect(() => {
-    setTheme(document.documentElement.dataset.theme === 'light' ? 'light' : 'dark')
-  }, [])
-
-  const flipTheme = () => {
-    const next = theme === 'dark' ? 'light' : 'dark'
-    setTheme(next)
-    document.documentElement.dataset.theme = next
-    localStorage.setItem('theme', next)
+  /**
+   * 볼트 어디서든 내부 <a> 클릭을 라우터로 넘긴다 — 트리·레일·검색 결과가 전부
+   * 맨 앵커라서, 여기 한 곳이 클라이언트 라우팅(과 라우트 fade)을 보장한다.
+   * 새 탭·수정키·외부 주소·이미 처리된 이벤트는 브라우저에 맡긴다.
+   */
+  const intercept = (e: React.MouseEvent) => {
+    if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return
+    const a = (e.target as HTMLElement).closest('a')
+    if (!a || a.target === '_blank' || a.hasAttribute('download')) return
+    const href = a.getAttribute('href') ?? ''
+    if (!href.startsWith('/')) return
+    e.preventDefault()
+    router.push(href)
   }
 
-  const openSearch = useCallback(() => {
-    setPanel('search')
-    setCollapsed(false)
-    setTimeout(() => searchRef.current?.focus(), 0)
-  }, [])
-
-  // Ctrl+K로 검색 — 옵시디언과 같은 자리
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
-        e.preventDefault()
-        openSearch()
-      }
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [openSearch])
-
-  // 검색 입력이 멎으면 질의한다.
-  useEffect(() => {
-    const term = q.trim()
-    if (term.length < 2) {
-      setHits([])
-      return
-    }
-    setSearching(true)
-    const t = setTimeout(() => {
-      fetch(`/api/search?q=${encodeURIComponent(term)}&limit=40`)
-        .then((r) => r.json())
-        .then((b) => setHits(b.items ?? []))
-        .finally(() => setSearching(false))
-    }, 250)
-    return () => clearTimeout(t)
-  }, [q])
-
   return (
-    <div className={`vault${collapsed ? ' collapsed' : ''}`}>
-      <nav className="rail">
-        <button
-          className={panel === 'files' && !collapsed ? 'on' : ''}
-          title="문서 목록"
-          onClick={() => {
-            if (panel === 'files') setCollapsed((c) => !c)
-            else {
-              setPanel('files')
-              setCollapsed(false)
-            }
-          }}
-        >
-          ▤
-        </button>
-        <button
-          className={panel === 'search' && !collapsed ? 'on' : ''}
-          title="검색 (Ctrl+K)"
-          onClick={openSearch}
-        >
-          ⌕
-        </button>
+    <div className={`vault${collapsed ? ' collapsed' : ''}`} onClick={intercept}>
+      <nav className="rail" aria-label="글로벌 내비게이션">
+        <a className="logo" href="/" aria-label="GraphWiki 홈">
+          <Share2 size={18} aria-hidden />
+          <span>GraphWiki</span>
+        </a>
+
+        <SidebarItem icon={<Home size={IC} aria-hidden />} label="홈" href="/" on={pathname === '/'} />
+        {/* 트리 접기/펼치기 토글 — 위치 표시가 아니라서 on을 주지 않는다 (과다 강조 금지) */}
+        <SidebarItem
+          icon={<FileText size={IC} aria-hidden />}
+          label="문서"
+          onClick={() => setCollapsed((c) => !c)}
+        />
+        <SidebarItem icon={<Sparkles size={IC} aria-hidden />} label="AI 작성" href="/ask" on={pathname === '/ask'} />
+        <SidebarItem
+          icon={<MessageSquareText size={IC} aria-hidden />}
+          label="도우미"
+          href="/chat"
+          on={pathname === '/chat'}
+        />
+        <SidebarItem icon={<Import size={IC} aria-hidden />} label="소스" href="/sources" on={pathname === '/sources'} />
+        <SidebarItem icon={<Trash2 size={IC} aria-hidden />} label="휴지통" href="/trash" on={pathname === '/trash'} />
+
         <span className="grow" />
-        <a href="/sources" title="온톨로지 소스 가져오기">
-          ⇩
-        </a>
-        <a href="/chat" title="위키 도우미">
-          ✎
-        </a>
-        <button title={theme === 'dark' ? '밝게' : '어둡게'} onClick={flipTheme}>
-          {theme === 'dark' ? '☾' : '☀'}
-        </button>
+
+        <div className="rail-sep" role="separator" />
+        <SidebarItem
+          icon={<SettingsIcon size={IC} aria-hidden />}
+          label="설정"
+          on={settings}
+          onClick={() => setSettings(true)}
+        />
       </nav>
 
+      {settings && <Settings onClose={() => setSettings(false)} />}
+
       <aside className="sidebar">
-        {panel === 'files' ? (
-          <>
-            <div className="sidebar-head">
-              <strong style={{ fontSize: 13 }}>문서</strong>
-            </div>
-            <div className="sidebar-body">
-              <FileTree activeSlug={activeSlug} />
-            </div>
-          </>
-        ) : (
-          <>
-            <div className="sidebar-head">
-              <input
-                ref={searchRef}
-                value={q}
-                onChange={(e) => setQ(e.target.value)}
-                placeholder="문서 검색"
-              />
-            </div>
-            <div className="sidebar-body">
-              {searching && <p className="meta" style={{ padding: '4px 8px' }}>찾는 중…</p>}
-              {!searching && q.trim().length >= 2 && hits.length === 0 && (
-                <p className="meta" style={{ padding: '4px 8px' }}>결과 없음</p>
-              )}
-              {hits.map((h) => (
-                <a key={h.slug} href={`/wiki/${h.slug}`} className="result">
-                  <span className="t">{h.title}</span>
-                  {h.summary && <span>{h.summary.slice(0, 60)}</span>}
-                </a>
-              ))}
-            </div>
-          </>
-        )}
-        <div className="sidebar-foot">
-          <span>wiki</span>
-          <a href="/sources" style={{ color: 'inherit' }}>
-            소스
-          </a>
-        </div>
+        <FileTree activeSlug={activeSlug} />
       </aside>
 
       <section className="main">{children}</section>

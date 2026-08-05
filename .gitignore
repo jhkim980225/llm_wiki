@@ -7,3 +7,7 @@ node_modules/
 .next/
 .env
 .env.test
+.gstack/
+tsconfig.tsbuildinfo
+*.tar
+*.tar.gz

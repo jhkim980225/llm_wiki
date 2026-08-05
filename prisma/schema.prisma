@@ -18,9 +18,6 @@ model Page {
   aliases        String[]  @default([])
   folderId       String?
   folder         Folder?   @relation(fields: [folderId], references: [id])
-  categoryPath   String[]  @default([])
-  wikiPath       String    @default("")
-  depth          Int       @default(0)
   sortOrder      Int       @default(0)
   inLinks        String[]  @default([])
   outLinks       String[]  @default([])
@@ -30,13 +27,16 @@ model Page {
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
   deletedAt      DateTime?
+  // 의미검색용 임베딩(embeddinggemma 768차원). pgvector 타입이라 Prisma는 Unsupported로 두고
+  // 읽기/쓰기·검색은 $queryRaw로 한다. hnsw 인덱스는 마이그레이션 SQL에서 직접 만든다.
+  embedding      Unsupported("vector(768)")?
 
   revisions PageRevision[]
 
   @@index([pageType])
   @@index([folderId])
-  @@index([wikiPath])
   @@index([deletedAt])
+  @@index([title])
 }
 
 model PageRevision {
@@ -58,16 +58,19 @@ model PageRevision {
 }
 
 model Folder {
-  id        String   @id @default(uuid())
+  id        String    @id @default(uuid())
   parentId  String?
-  parent    Folder?  @relation("FolderTree", fields: [parentId], references: [id])
-  children  Folder[] @relation("FolderTree")
+  parent    Folder?   @relation("FolderTree", fields: [parentId], references: [id])
+  children  Folder[]  @relation("FolderTree")
   name      String
-  sortOrder Int      @default(0)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  sortOrder Int       @default(0)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  // 휴지통 — 문서와 같은 soft delete. 7일 지나면 퍼지된다 (lib/trash.ts)
+  deletedAt DateTime?
 
   pages Page[]
 
   @@index([parentId])
+  @@index([deletedAt])
 }

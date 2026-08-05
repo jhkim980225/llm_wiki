@@ -39,27 +39,3 @@ export async function folderPath(folderId: string | null): Promise<string[]> {
   }
   return names
 }
-
-/**
- * 폴더가 옮겨지거나 이름이 바뀌면 그 안 페이지들의 경로 캐시를 다시 새긴다.
- * categoryPath / wikiPath / depth는 folderId에서 유도된 캐시라 진실은 언제나 folderId다.
- */
-export async function recomputePagePaths(folderId: string | null): Promise<number> {
-  const path = await folderPath(folderId)
-  const pages = await db.page.findMany({
-    where: { folderId, deletedAt: null },
-    select: { id: true, title: true },
-  })
-
-  for (const p of pages) {
-    await db.page.update({
-      where: { id: p.id },
-      data: {
-        categoryPath: path,
-        depth: path.length,
-        wikiPath: [...path, p.title].join('/'),
-      },
-    })
-  }
-  return pages.length
-}

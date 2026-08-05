@@ -14,27 +14,25 @@ export async function renamePage(oldSlug: string, newSlug: string) {
       throw new Error(`page already exists: ${newSlug}`)
     }
 
+    // 참조 페이지를 한 번에 읽어 온다(대상마다 findUnique 하던 N 왕복 제거).
+    // 본문 재작성은 페이지마다 내용이 달라 update는 개별이지만, 실제로 바뀐 것만 쓴다.
     let rewritten = 0
-    for (const referrer of page.inLinks) {
-      const ref = await tx.page.findUnique({ where: { slug: referrer } })
-      if (!ref) continue
+    const referrers = await tx.page.findMany({ where: { slug: { in: page.inLinks } } })
+    for (const ref of referrers) {
       const content = rewriteWikiLinks(ref.content, oldSlug, newSlug)
       if (content === ref.content) continue
       await tx.page.update({
-        where: { slug: referrer },
+        where: { slug: ref.slug },
         data: { content, outLinks: parseOutLinks(content) },
       })
       rewritten++
     }
 
-    // 이 페이지가 가리키던 대상들의 백링크에도 새 이름을 반영한다.
-    for (const target of page.outLinks) {
-      const t = await tx.page.findUnique({ where: { slug: target } })
-      if (!t) continue
-      await tx.page.update({
-        where: { slug: target },
-        data: { inLinks: t.inLinks.map((s) => (s === oldSlug ? newSlug : s)) },
-      })
+    // 이 페이지가 가리키던 대상들의 백링크 배열에서 oldSlug→newSlug를 한 방에 치환한다.
+    if (page.outLinks.length > 0) {
+      await tx.$executeRaw`
+        UPDATE "Page" SET "inLinks" = array_replace("inLinks", ${oldSlug}, ${newSlug})
+        WHERE slug = ANY(${page.outLinks}::text[])`
     }
 
     const updated = await tx.page.update({ where: { slug: oldSlug }, data: { slug: newSlug } })

@@ -1,8 +1,13 @@
 'use client'
 import { useEffect, useMemo, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { marked } from 'marked'
 import DOMPurify from 'dompurify'
+import { MoreHorizontal } from 'lucide-react'
 import { wikiLinksToHtml } from '@/lib/wiki/render'
+import { Menu, anchorOf, type Anchor } from '@/components/vault/Dialog'
+import { useVaultAction } from '@/components/vault/actions'
+import { normalizeSlug } from '@/lib/wiki/slug'
 
 export type PageData = {
   slug: string
@@ -28,6 +33,15 @@ const EDITOR: Record<string, string> = {
 
 export function PageView({ page, onEdit }: { page: PageData; onEdit: () => void }) {
   const [html, setHtml] = useState('')
+  const [menu, setMenu] = useState<Anchor | null>(null)
+
+  const router = useRouter()
+
+  const { start, dialog, error, clearError } = useVaultAction((p, value) => {
+    if (p.kind === 'page-rename') router.push(`/wiki/${normalizeSlug(value)}`)
+    else if (p.kind === 'page-delete') router.push('/')
+    else router.refresh()
+  })
 
   const existing = useMemo(
     () => new Set(page.outLinks.filter((s) => !page.deadLinks.includes(s))),
@@ -46,44 +60,79 @@ export function PageView({ page, onEdit }: { page: PageData; onEdit: () => void 
 
   return (
     <div className="doc-inner">
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-        <h1 style={{ fontSize: '2rem', margin: '0 0 4px', letterSpacing: '-0.02em', flex: 1 }}>
-          {page.title}
-        </h1>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, position: 'relative' }}>
+        <h1 className="doc-title" style={{ flex: 1 }}>{page.title}</h1>
         <button className="quiet" onClick={onEdit}>
           편집
         </button>
-      </div>
-
-      <div className="props">
-        <div className="props-title">속성</div>
-
-        <Row icon="≡" name="type" value={page.pageType} />
-
-        {page.aliases.length > 0 && (
-          <Row
-            icon="🏷"
-            name="tags"
-            value={
-              <>
-                {page.aliases.map((a) => (
-                  <span key={a} className="tag">
-                    {a}
-                  </span>
-                ))}
-              </>
-            }
+        <button
+          className="quiet"
+          aria-label="문서 메뉴"
+          title="문서 메뉴"
+          onClick={(e) => {
+            e.stopPropagation()
+            setMenu(menu ? null : anchorOf(e.currentTarget))
+          }}
+        >
+          <MoreHorizontal size={15} />
+        </button>
+        {menu && (
+          <Menu
+            at={menu}
+            onClose={() => setMenu(null)}
+            items={[
+              { label: '이름 바꾸기', run: () => start({ kind: 'page-rename', slug: page.slug }) },
+              { label: '옮기기', run: () => start({ kind: 'page-move', slug: page.slug }) },
+              { label: '삭제', danger: true, run: () => start({ kind: 'page-delete', slug: page.slug, title: page.title }) },
+            ]}
           />
         )}
-
-        {page.summary && <Row icon="≣" name="summary" value={page.summary} />}
-        <Row icon="📅" name="updated" value={`${updated} · v${page.version} · ${EDITOR[page.lastEditSource] ?? page.lastEditSource}`} />
-        <Row icon="🔗" name="links" value={`나감 ${page.outLinks.length} · 들어옴 ${page.backlinks.length}${page.deadLinks.length ? ` · 끊김 ${page.deadLinks.length}` : ''}`} />
       </div>
 
-      <article className="prose" dangerouslySetInnerHTML={{ __html: html }} />
+      {error && (
+        <p className="notice" onClick={clearError}>
+          {error}
+        </p>
+      )}
+      {dialog}
 
-      <section className="backlinks">
+      {/* 메타데이터 행 — 카드가 아니라 구분선 사이 한 줄 (docs/design.md) */}
+      <div className="meta-row">
+        <span>
+          <span className="k">type</span>
+          <span className="v uri">{page.pageType}</span>
+        </span>
+        <span>
+          <span className="k">updated</span>
+          <span className="v">{updated} · v{page.version}</span>
+        </span>
+        <span>
+          <span className="k">author</span>
+          <span className="v">{EDITOR[page.lastEditSource] ?? page.lastEditSource}</span>
+        </span>
+        <span>
+          <span className="k">links</span>
+          <span className="v">
+            나감 {page.outLinks.length} · 들어옴 {page.backlinks.length}
+            {page.deadLinks.length > 0 && <> · <span className="badge-warn">끊김 {page.deadLinks.length}</span></>}
+          </span>
+        </span>
+        {page.aliases.length > 0 && (
+          <span>
+            <span className="k">태그</span>
+            <span className="v">{page.aliases.join(' · ')}</span>
+          </span>
+        )}
+      </div>
+      {page.summary && (
+        <p style={{ margin: '-16px 0 28px', color: 'var(--text-dim)', fontSize: 13.5 }}>{page.summary}</p>
+      )}
+
+      {/* 본문 링크는 dangerouslySetInnerHTML로 뿌려서 next/link가 될 수 없다.
+          클릭을 위에서 가로채 라우터로 넘긴다 — 새로고침 없이 문서를 오간다. */}
+      <article className="prose" onClick={interceptLinks(router)} dangerouslySetInnerHTML={{ __html: html }} />
+
+      <section className="backlinks" onClick={interceptLinks(router)}>
         <h4>이 문서를 가리키는 문서 {page.backlinks.length}</h4>
         {page.backlinks.length === 0 ? (
           <p className="meta">없음</p>
@@ -101,14 +150,18 @@ export function PageView({ page, onEdit }: { page: PageData; onEdit: () => void 
   )
 }
 
-function Row({ icon, name, value }: { icon: string; name: string; value: React.ReactNode }) {
-  return (
-    <div className="prop-row">
-      <span className="prop-key">
-        <span className="icon">{icon}</span>
-        {name}
-      </span>
-      <span className="prop-val">{value}</span>
-    </div>
-  )
+/**
+ * 내부 문서 링크 클릭을 라우터로 넘긴다.
+ * 새 탭·수정키·외부 주소는 브라우저에 그대로 맡긴다.
+ */
+function interceptLinks(router: ReturnType<typeof useRouter>) {
+  return (e: React.MouseEvent<HTMLElement>) => {
+    const a = (e.target as HTMLElement).closest('a')
+    if (!a || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return
+    if (a.target === '_blank') return
+    const href = a.getAttribute('href') ?? ''
+    if (!href.startsWith('/')) return
+    e.preventDefault()
+    router.push(href)
+  }
 }
