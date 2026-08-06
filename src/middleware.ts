@@ -7,8 +7,8 @@ import { verifySession, SESSION_COOKIE } from '@/lib/auth/session'
  * 로그인·가입 경로와 정적 자원만 열려 있다 (matcher).
  */
 export async function middleware(req: NextRequest) {
-  const userId = await verifySession(req.cookies.get(SESSION_COOKIE)?.value)
-  if (userId) return NextResponse.next()
+  const claims = await verifySession(req.cookies.get(SESSION_COOKIE)?.value)
+  if (claims) return NextResponse.next()
 
   const { pathname } = req.nextUrl
   if (pathname.startsWith('/api/')) {
@@ -20,5 +20,5 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico|login|api/login|api/register|api/health).*)'],
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|login|api/auth/login|api/health).*)'],
 }

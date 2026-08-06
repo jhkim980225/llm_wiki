@@ -3,8 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Building2, ChevronDown, Eye, EyeOff, ShieldCheck, Waypoints } from 'lucide-react'
-
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+import { LOGIN_ID_RE } from '@/lib/auth/password'
 
 /** 배경 장식 — 문서 노드 그래프 패턴. 아주 낮은 투명도, 왼쪽 하단 고정. */
 function GraphPattern() {
@@ -30,18 +29,18 @@ function GraphPattern() {
   )
 }
 
-type Mode = 'login' | 'register'
+type WorkspaceOption = { id: string; name: string; slug: string; role: string }
 
 export default function LoginPage() {
-  const [mode, setMode] = useState<Mode>('login')
-  const [email, setEmail] = useState('')
+  const [loginId, setLoginId] = useState('')
   const [password, setPassword] = useState('')
-  const [name, setName] = useState('')
   const [showPw, setShowPw] = useState(false)
   const [remember, setRemember] = useState(true)
   const [busy, setBusy] = useState(false)
-  const [fieldErr, setFieldErr] = useState<{ email?: string; password?: string }>({})
+  const [fieldErr, setFieldErr] = useState<{ loginId?: string; password?: string }>({})
   const [topErr, setTopErr] = useState('')
+  // 기본 워크스페이스가 없고 소속이 여럿일 때만 선택 UI가 뜬다
+  const [choices, setChoices] = useState<WorkspaceOption[] | null>(null)
   const router = useRouter()
 
   const submit = async (e: React.FormEvent) => {
@@ -49,33 +48,29 @@ export default function LoginPage() {
     if (busy) return
 
     const errs: typeof fieldErr = {}
-    if (!EMAIL_RE.test(email.trim())) errs.email = '이메일 형식이 올바르지 않습니다.'
+    if (!LOGIN_ID_RE.test(loginId.trim())) errs.loginId = '아이디는 4~50자의 영문·숫자·._-만 허용됩니다.'
     if (!password) errs.password = '비밀번호를 입력하세요.'
-    if (mode === 'register' && password.length > 0 && password.length < 8)
-      errs.password = '비밀번호는 8자 이상이어야 합니다.'
     setFieldErr(errs)
     setTopErr('')
     if (Object.keys(errs).length > 0) return
 
     setBusy(true)
     try {
-      const res = await fetch(mode === 'login' ? '/api/login' : '/api/register', {
+      const res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(
-          mode === 'login' ? { email, password, remember } : { email, password, name },
-        ),
+        body: JSON.stringify({ loginId, password, rememberMe: remember }),
       })
-      if (res.ok) {
-        router.replace('/')
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setTopErr(body.message ?? `요청에 실패했습니다 (HTTP ${res.status})`)
         return
       }
-      const body = await res.json().catch(() => ({}))
-      setTopErr(
-        res.status === 401
-          ? '이메일 또는 비밀번호가 올바르지 않습니다.'
-          : (body.error ?? `요청에 실패했습니다 (HTTP ${res.status})`),
-      )
+      if (!body.workspace && Array.isArray(body.workspaces) && body.workspaces.length > 0) {
+        setChoices(body.workspaces)
+        return
+      }
+      router.replace('/')
     } catch {
       setTopErr('서버에 연결할 수 없습니다.')
     } finally {
@@ -83,10 +78,19 @@ export default function LoginPage() {
     }
   }
 
-  const switchMode = (m: Mode) => {
-    setMode(m)
-    setTopErr('')
-    setFieldErr({})
+  const pickWorkspace = async (workspaceId: string) => {
+    setBusy(true)
+    try {
+      const res = await fetch('/api/auth/switch-workspace', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ workspaceId }),
+      })
+      if (res.ok) router.replace('/')
+      else setTopErr('워크스페이스 진입에 실패했습니다.')
+    } finally {
+      setBusy(false)
+    }
   }
 
   return (
@@ -134,77 +138,76 @@ export default function LoginPage() {
 
         {/* 오른쪽 — 로그인 카드 */}
         <section className="login-side">
-          <form className="login-card" onSubmit={submit} noValidate>
-            <div className="ws" role="note" aria-label="워크스페이스">
-              <Building2 size={14} aria-hidden />
-              온톨로지 프로젝트
-              <ChevronDown size={13} aria-hidden />
+          {choices ? (
+            <div className="login-card">
+              <h2>워크스페이스 선택</h2>
+              <p className="sub">접속할 워크스페이스를 선택하세요.</p>
+              <div className="ws-list">
+                {choices.map((w) => (
+                  <button key={w.id} type="button" disabled={busy} onClick={() => pickWorkspace(w.id)}>
+                    <Building2 size={15} aria-hidden />
+                    <span className="n">{w.name}</span>
+                    <span className="r">{w.role}</span>
+                  </button>
+                ))}
+              </div>
+              <p className="top-err" role="alert" aria-live="polite">
+                {topErr}
+              </p>
             </div>
+          ) : (
+            <form className="login-card" onSubmit={submit} noValidate>
+              <div className="ws" role="note" aria-label="워크스페이스">
+                <Building2 size={14} aria-hidden />
+                온톨로지 프로젝트
+                <ChevronDown size={13} aria-hidden />
+              </div>
 
-            <h2>{mode === 'login' ? '로그인' : '회원가입'}</h2>
-            <p className="sub">
-              {mode === 'login'
-                ? '주식회사 성진 워크스페이스에 접속하세요.'
-                : '계정을 만들고 바로 시작하세요.'}
-            </p>
+              <h2>로그인</h2>
+              <p className="sub">주식회사 성진 워크스페이스에 접속하세요.</p>
 
-            {/* 오류가 나도 레이아웃이 안 밀리게 자리를 항상 잡아둔다 */}
-            <p className="top-err" role="alert">
-              {topErr}
-            </p>
+              {/* 오류가 나도 레이아웃이 안 밀리게 자리를 항상 잡아둔다 */}
+              <p className="top-err" role="alert" aria-live="polite">
+                {topErr}
+              </p>
 
-            {mode === 'register' && (
               <label className="field">
-                이름
+                아이디
                 <input
                   type="text"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="이름을 입력하세요"
-                  autoComplete="name"
+                  value={loginId}
+                  onChange={(e) => setLoginId(e.target.value)}
+                  placeholder="아이디를 입력하세요"
+                  autoComplete="username"
+                  autoFocus
+                  aria-invalid={Boolean(fieldErr.loginId)}
                 />
-                <span className="err" />
+                <span className="err">{fieldErr.loginId}</span>
               </label>
-            )}
 
-            <label className="field">
-              이메일
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="이메일 주소를 입력하세요"
-                autoComplete="email"
-                autoFocus
-                aria-invalid={Boolean(fieldErr.email)}
-              />
-              <span className="err">{fieldErr.email}</span>
-            </label>
+              <label className="field">
+                비밀번호
+                <span className="pw-wrap">
+                  <input
+                    type={showPw ? 'text' : 'password'}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="비밀번호를 입력하세요"
+                    autoComplete="current-password"
+                    aria-invalid={Boolean(fieldErr.password)}
+                  />
+                  <button
+                    type="button"
+                    className="pw-toggle"
+                    aria-label={showPw ? '비밀번호 숨기기' : '비밀번호 표시'}
+                    onClick={() => setShowPw((v) => !v)}
+                  >
+                    {showPw ? <EyeOff size={15} /> : <Eye size={15} />}
+                  </button>
+                </span>
+                <span className="err">{fieldErr.password}</span>
+              </label>
 
-            <label className="field">
-              비밀번호
-              <span className="pw-wrap">
-                <input
-                  type={showPw ? 'text' : 'password'}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="비밀번호를 입력하세요"
-                  autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
-                  aria-invalid={Boolean(fieldErr.password)}
-                />
-                <button
-                  type="button"
-                  className="pw-toggle"
-                  aria-label={showPw ? '비밀번호 숨기기' : '비밀번호 표시'}
-                  onClick={() => setShowPw((v) => !v)}
-                >
-                  {showPw ? <EyeOff size={15} /> : <Eye size={15} />}
-                </button>
-              </span>
-              <span className="err">{fieldErr.password}</span>
-            </label>
-
-            {mode === 'login' && (
               <div className="row">
                 <label className="check">
                   <input
@@ -217,41 +220,19 @@ export default function LoginPage() {
                 <button
                   type="button"
                   className="link"
-                  onClick={() => setTopErr('비밀번호 재설정은 관리자에게 문의하세요.')}
+                  onClick={() => setTopErr('비밀번호 초기화는 관리자에게 문의하세요.')}
                 >
                   비밀번호를 잊으셨나요?
                 </button>
               </div>
-            )}
 
-            <button className="submit" type="submit" disabled={busy}>
-              {busy
-                ? mode === 'login'
-                  ? '로그인 중...'
-                  : '가입 중...'
-                : mode === 'login'
-                  ? '로그인'
-                  : '회원가입'}
-            </button>
+              <button className="submit" type="submit" disabled={busy}>
+                {busy ? '로그인 중...' : '로그인'}
+              </button>
 
-            <p className="swap">
-              {mode === 'login' ? (
-                <>
-                  계정이 없나요?{' '}
-                  <button type="button" className="link" onClick={() => switchMode('register')}>
-                    회원가입
-                  </button>
-                </>
-              ) : (
-                <>
-                  이미 계정이 있나요?{' '}
-                  <button type="button" className="link" onClick={() => switchMode('login')}>
-                    로그인
-                  </button>
-                </>
-              )}
-            </p>
-          </form>
+              <p className="swap">계정이 필요한 경우 관리자에게 문의하세요.</p>
+            </form>
+          )}
         </section>
       </div>
 

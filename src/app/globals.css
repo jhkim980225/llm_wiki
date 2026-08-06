@@ -2473,3 +2473,41 @@ a.card:hover {
     background: none;
   }
 }
+
+/* 로그인 후 워크스페이스 선택 (기본 워크스페이스가 없고 소속이 여럿일 때만) */
+.login-card .ws-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.login-card .ws-list button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 52px;
+  padding: 0 14px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-lg);
+  background: var(--bg);
+  color: var(--text);
+  font-size: 14px;
+  cursor: pointer;
+  transition: border-color var(--fast), background var(--fast);
+}
+
+.login-card .ws-list button:hover {
+  border-color: var(--accent);
+  background: var(--hover);
+}
+
+.login-card .ws-list .n {
+  flex: 1;
+  text-align: left;
+}
+
+.login-card .ws-list .r {
+  color: var(--text-faint);
+  font-size: 12px;
+}
