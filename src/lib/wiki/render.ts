@@ -1,4 +1,5 @@
 import { WIKI_LINK_RE } from './links'
+import { normalizeSlug } from './slug'
 
 const escapeHtml = (s: string) =>
   s
@@ -16,8 +17,10 @@ const escapeHtml = (s: string) =>
 export function wikiLinksToHtml(content: string, existingSlugs: Set<string>): string {
   return content.replace(WIKI_LINK_RE, (_whole, inner: string) => {
     const pipe = inner.indexOf('|')
-    const slug = (pipe >= 0 ? inner.slice(0, pipe) : inner).trim()
-    const display = pipe >= 0 ? inner.slice(pipe + 1).trim() : slug
+    const raw = (pipe >= 0 ? inner.slice(0, pipe) : inner).trim()
+    // [[문서 제목]]처럼 제목으로 쓴 링크도 slug 규칙으로 정규화해 해석한다
+    const slug = normalizeSlug(raw)
+    const display = pipe >= 0 ? inner.slice(pipe + 1).trim() : raw
     const dead = existingSlugs.has(slug) ? '' : ' dead'
     const href = encodeURI('/wiki/' + slug).replace(/"/g, '%22')
     return `<a class="wikilink${dead}" href="${escapeHtml(href)}">${escapeHtml(display)}</a>`

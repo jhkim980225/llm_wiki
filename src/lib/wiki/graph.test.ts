@@ -29,6 +29,14 @@ describe('buildGraph', () => {
     expect(deg).toEqual({ a: 1, b: 2, c: 1 })
   })
 
+  it('[[문서 제목]]처럼 제목으로 쓴 링크도 slug로 정규화해 잇는다', () => {
+    const { edges } = buildGraph([
+      { slug: 'a', title: 'a', pageType: 'concept', outLinks: ['주식회사 성진 구성원'] },
+      page('주식회사-성진-구성원'),
+    ])
+    expect(edges).toEqual([{ source: 'a', target: '주식회사-성진-구성원' }])
+  })
+
   it('링크 없는 고립 노드도 노드 목록에 남는다', () => {
     const { nodes, edges } = buildGraph([page('solo')])
     expect(nodes).toHaveLength(1)

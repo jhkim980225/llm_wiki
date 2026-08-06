@@ -85,6 +85,8 @@ export function PageEditor({
         return
       }
       setConflict(null)
+      // 제목이 바뀌면 트리 표기도 바뀌어야 한다 — 트리에 갱신을 알린다
+      window.dispatchEvent(new Event('wiki:refresh'))
       onSaved(body)
     } finally {
       setSaving(false)

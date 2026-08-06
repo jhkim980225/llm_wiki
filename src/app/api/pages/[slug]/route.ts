@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { savePage, VersionConflictError } from '@/lib/pages/save'
 import { embedPageSafe } from '@/lib/pages/embedding'
+import { normalizeSlug } from '@/lib/wiki/slug'
 
 /** [...slug] 없이 슬래시 포함 slug를 다루기 위해 경로 조각은 URL 인코딩된 채로 온다. */
 const decode = (s: string) => decodeURIComponent(s)
@@ -11,6 +12,9 @@ export async function GET(_: Request, { params }: { params: Promise<{ slug: stri
   const page = await db.page.findFirst({ where: { slug, deletedAt: null } })
   if (!page) return NextResponse.json({ error: 'not found' }, { status: 404 })
 
+  // 과거 저장분엔 [[문서 제목]] 그대로의 outLink가 남아 있을 수 있어 정규화해 비교한다.
+  const outLinks = [...new Set(page.outLinks.map(normalizeSlug))]
+
   // 백링크와 죽은 링크 조회는 서로 독립이라 함께 던진다.
   const [backlinks, existing] = await Promise.all([
     db.page.findMany({
@@ -19,13 +23,13 @@ export async function GET(_: Request, { params }: { params: Promise<{ slug: stri
     }),
     // 본문이 가리키지만 아직 없는 페이지 — UI가 붉은 링크로 표시한다.
     db.page.findMany({
-      where: { slug: { in: page.outLinks }, deletedAt: null },
+      where: { slug: { in: outLinks }, deletedAt: null },
       select: { slug: true },
     }),
   ])
-  const deadLinks = page.outLinks.filter((s) => !existing.some((e) => e.slug === s))
+  const deadLinks = outLinks.filter((s) => !existing.some((e) => e.slug === s))
 
-  return NextResponse.json({ ...page, backlinks, deadLinks })
+  return NextResponse.json({ ...page, outLinks, backlinks, deadLinks })
 }
 
 export async function PUT(req: Request, { params }: { params: Promise<{ slug: string }> }) {

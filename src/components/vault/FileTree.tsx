@@ -280,6 +280,14 @@ export function FileTree({ activeSlug }: { activeSlug: string }) {
     setTick((t) => t + 1)
   }, [])
 
+  // 트리 밖에서 문서가 생기거나 바뀌면(편집기 저장, /ask 자동 저장, 도우미 편집)
+  // 'wiki:refresh' 이벤트로 알려온다 — 트리는 다시 그리기만 한다.
+  useEffect(() => {
+    const refresh = () => setTick((t) => t + 1)
+    window.addEventListener('wiki:refresh', refresh)
+    return () => window.removeEventListener('wiki:refresh', refresh)
+  }, [])
+
   // Ctrl+K 검색 · Ctrl+N 새 문서
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {

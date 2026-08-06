@@ -15,7 +15,10 @@ type LlmHealth = {
 }
 
 export function ChatPanel() {
-  const { messages, sendMessage, status } = useChat()
+  const { messages, sendMessage, status } = useChat({
+    // 도우미가 문서를 만들거나 지웠을 수 있다 — 턴이 끝나면 트리에 갱신을 알린다
+    onFinish: () => window.dispatchEvent(new Event('wiki:refresh')),
+  })
   const [input, setInput] = useState('')
   const [llm, setLlm] = useState<LlmHealth | null>(null)
 

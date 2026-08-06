@@ -100,6 +100,8 @@ export default function AskPage() {
       res = await post(slug)
     }
     patchLastAi(res.ok ? { saved: slug } : { saved: null })
+    // 자동 저장된 문서가 트리에 바로 보이게 알린다
+    if (res.ok) window.dispatchEvent(new Event('wiki:refresh'))
   }
 
   const ask = async (q: string) => {

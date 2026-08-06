@@ -25,6 +25,13 @@ describe('parseOutLinks', () => {
   it('링크가 없으면 빈 배열', () => {
     expect(parseOutLinks('평범한 문장')).toEqual([])
   })
+
+  it('[[문서 제목]]처럼 제목으로 쓴 링크를 slug 규칙으로 정규화한다', () => {
+    expect(parseOutLinks('[[주식회사 성진 구성원]] [[Fuseki]]')).toEqual([
+      '주식회사-성진-구성원',
+      'fuseki',
+    ])
+  })
 })
 
 import { computeForbiddenSpans } from './links'

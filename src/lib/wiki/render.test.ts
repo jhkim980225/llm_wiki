@@ -2,6 +2,14 @@ import { describe, it, expect } from 'vitest'
 import { wikiLinksToHtml } from './render'
 
 describe('wikiLinksToHtml', () => {
+  it('[[문서 제목]]처럼 제목으로 쓴 링크를 slug로 정규화해 살아 있는 링크로 만든다', () => {
+    const existing = new Set(['주식회사-성진-구성원'])
+    const html = wikiLinksToHtml('[[주식회사 성진 구성원]]', existing)
+    expect(html).toContain('href="/wiki/%EC%A3%BC%EC%8B%9D%ED%9A%8C%EC%82%AC-%EC%84%B1%EC%A7%84-%EA%B5%AC%EC%84%B1%EC%9B%90"')
+    expect(html).not.toContain('dead')
+    expect(html).toContain('>주식회사 성진 구성원<')
+  })
+
   const existing = new Set(['e/acme'])
 
   it('존재하는 페이지는 보통 링크', () => {
