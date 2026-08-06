@@ -47,7 +47,7 @@ export default function LoginPage() {
           background: '#151820',
         }}
       >
-        <h1 style={{ fontSize: 18, margin: 0, fontWeight: 600 }}>GraphWiki</h1>
+        <h1 style={{ fontSize: 18, margin: 0, fontWeight: 600 }}>주식회사 성진</h1>
         <p style={{ margin: '0 0 4px', fontSize: 13, color: '#9ca3af' }}>
           접근하려면 비밀번호를 입력하세요.
         </p>

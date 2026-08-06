@@ -12,7 +12,7 @@ const mono = JetBrains_Mono({
   display: 'swap',
 })
 
-export const metadata = { title: 'GraphWiki', description: '사내 위키' }
+export const metadata = { title: '주식회사 성진', description: '사내 위키' }
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (

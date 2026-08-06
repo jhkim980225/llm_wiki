@@ -13,7 +13,7 @@ export default function Home() {
       </div>
       <div className="doc" style={{ padding: 0 }}>
         <div className="onboard">
-          <h1>GraphWiki 시작하기</h1>
+          <h1>주식회사 성진 위키 시작하기</h1>
           <p className="lead">문서를 직접 쓰거나, 사내 지식 그래프에서 찾아 문서로 만듭니다.</p>
 
           <div className="action-list">

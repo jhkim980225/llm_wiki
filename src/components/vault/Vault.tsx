@@ -55,9 +55,9 @@ export function Vault({ children }: { children: ReactNode }) {
   return (
     <div className={`vault${collapsed ? ' collapsed' : ''}`} onClick={intercept}>
       <nav className="rail" aria-label="글로벌 내비게이션">
-        <a className="logo" href="/" aria-label="GraphWiki 홈">
+        <a className="logo" href="/" aria-label="주식회사 성진 홈">
           <Share2 size={18} aria-hidden />
-          <span>GraphWiki</span>
+          <span>주식회사 성진</span>
         </a>
 
         <SidebarItem icon={<Home size={IC} aria-hidden />} label="홈" href="/" on={pathname === '/'} />
