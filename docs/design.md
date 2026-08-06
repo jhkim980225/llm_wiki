@@ -97,7 +97,7 @@ font-family: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFon
 ### 글로벌 사이드바
 로고 sans-serif bold, 아이콘-텍스트 간격 8px. 메뉴 아이콘 17px, 항목 높이 36px,
 radius 6px. 선택 = 좌측 2px accent indicator + rgba accent 배경 + 아이콘·텍스트 accent.
-상단 메뉴 그룹(홈·문서·AI 작성·도우미·소스·휴지통)과 하단 설정 그룹을 분리.
+상단 메뉴 그룹(홈·문서·그래프·AI 작성·휴지통)과 하단 설정 그룹을 분리.
 
 ### 문서 트리
 상단 한 줄: '문서' 제목 + 새 문서(compact, 30px) + 더보기. 검색창 34px, Search 아이콘 +
@@ -164,3 +164,4 @@ radius 13px, 패딩 52px). 입력 52px, radius 8px, focus는 accent 테두리만
 - 2026-08-06 v1.2 — 그래프 뷰(/graph) 기준 추가. '도입하지 않음' 결정을 뒤집고 옵시디언식 연결 그래프 도입 (시안 docs/mockups/graph-view-mockup.html)
 - 2026-08-06 v1.3 — 로그인 화면 기준 추가. 공유 비밀번호 게이트를 이메일/비밀번호 계정 인증으로 교체
 - 2026-08-06 v1.4 — 전역 토스트 규칙 추가 (로그인 성공·잠금·네트워크 오류 피드백)
+- 2026-08-06 v1.5 — 도우미·소스 탭 제거 (가져오기는 설정→상태로). 홈 온보딩을 사이드바 사용 가이드(클릭 이동)로 개편

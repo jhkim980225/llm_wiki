@@ -1,14 +1,12 @@
 'use client'
-import { useState, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import {
   FileText,
   Home,
-  MessageSquareText,
   Settings as SettingsIcon,
   Share2,
   Sparkles,
-  Import,
   Trash2,
   Waypoints,
 } from 'lucide-react'
@@ -34,6 +32,13 @@ export function Vault({ children }: { children: ReactNode }) {
 
   const [collapsed, setCollapsed] = useState(false)
   const [settings, setSettings] = useState(false)
+
+  // 홈 가이드 등 셸 밖 컴포넌트가 설정 모달을 열 수 있게 이벤트를 받는다
+  useEffect(() => {
+    const open = () => setSettings(true)
+    window.addEventListener('wiki:open-settings', open)
+    return () => window.removeEventListener('wiki:open-settings', open)
+  }, [])
 
   const router = useRouter()
 
@@ -77,13 +82,6 @@ export function Vault({ children }: { children: ReactNode }) {
           on={pathname === '/graph'}
         />
         <SidebarItem icon={<Sparkles size={IC} aria-hidden />} label="AI 작성" href="/ask" on={pathname === '/ask'} />
-        <SidebarItem
-          icon={<MessageSquareText size={IC} aria-hidden />}
-          label="도우미"
-          href="/chat"
-          on={pathname === '/chat'}
-        />
-        <SidebarItem icon={<Import size={IC} aria-hidden />} label="소스" href="/sources" on={pathname === '/sources'} />
         <SidebarItem icon={<Trash2 size={IC} aria-hidden />} label="휴지통" href="/trash" on={pathname === '/trash'} />
 
         <span className="grow" />

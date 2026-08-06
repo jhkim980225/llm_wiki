@@ -62,11 +62,23 @@ export function Settings({ onClose }: { onClose: () => void }) {
   )
 }
 
+type ImportResult = {
+  source: string
+  entities: number
+  triples: number
+  created: number
+  updated: number
+  skipped: number
+  ms: number
+  error?: string
+}
+
 function StatusTab() {
   const [graphs, setGraphs] = useState<Graphs | null>(null)
   const [llm, setLlm] = useState<Llm | null>(null)
   const [ontology, setOntology] = useState<Ontology | null>(null)
   const [busy, setBusy] = useState(false)
+  const [importing, setImporting] = useState<string | null>(null)
 
   // 그래프 확인은 죽은 소스를 기다리느라 오래 걸린다. 빠른 것부터 따로 채운다.
   const load = useCallback(() => {
@@ -85,6 +97,34 @@ function StatusTab() {
 
   const loaded = ontology?.sources ?? []
   const pagesOf = (id: string) => loaded.find((s) => s.id === id)?.pages ?? 0
+
+  // 온톨로지 가져오기 — 구 /sources 화면 기능. 개체→문서, 관계→[[링크]].
+  // 사람이 손댄 문서는 서버가 건너뛴다.
+  const runImport = async (id: string, name: string) => {
+    setImporting(id)
+    try {
+      const res = await fetch('/api/ontology', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ source: id, limit: 40000 }),
+      })
+      const r: ImportResult = await res.json()
+      if (!res.ok || r.error) {
+        toast(`${name} 가져오기 실패: ${r.error ?? `HTTP ${res.status}`}`, 'error')
+      } else {
+        toast(
+          `${name}: 개체 ${r.entities.toLocaleString('ko-KR')} · 새 문서 ${r.created.toLocaleString('ko-KR')} · 갱신 ${r.updated.toLocaleString('ko-KR')} · 건너뜀 ${r.skipped} · ${(r.ms / 1000).toFixed(1)}초`,
+          'success',
+        )
+      }
+      load()
+      window.dispatchEvent(new Event('wiki:refresh'))
+    } catch {
+      toast(`${name} 가져오기 실패: 서버에 연결할 수 없습니다.`, 'error')
+    } finally {
+      setImporting(null)
+    }
+  }
 
   return (
     <>
@@ -118,6 +158,16 @@ function StatusTab() {
                 </td>
                 <td className="num">
                   {pagesOf(s.id) > 0 ? `${pagesOf(s.id).toLocaleString('ko-KR')}건 적재됨` : '미적재'}
+                </td>
+                <td className="num">
+                  <button
+                    className="quiet"
+                    disabled={importing !== null || !s.ok}
+                    title={s.ok ? '개체를 문서로 가져온다' : '연결 실패 — 가져올 수 없음'}
+                    onClick={() => runImport(s.id, s.name)}
+                  >
+                    {importing === s.id ? '가져오는 중…' : '가져오기'}
+                  </button>
                 </td>
               </tr>
             ))}
@@ -171,7 +221,8 @@ function AboutTab() {
           실제로 찔러 본다.
         </li>
         <li>
-          <code>Ctrl+K</code> 검색 · <code>/sources</code> 적재 · <code>/chat</code> 도우미
+          <code>Ctrl+K</code> 검색 · <code>/ask</code> AI 작성 · 온톨로지 가져오기는 상태 탭의
+          소스별 <em>가져오기</em> 버튼
         </li>
       </ul>
     </div>

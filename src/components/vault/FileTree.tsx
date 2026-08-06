@@ -421,10 +421,6 @@ export function FileTree({ activeSlug }: { activeSlug: string }) {
         <button className={`quiet${all ? ' on' : ''}`} style={{ fontSize: 12 }} onClick={() => setAll((v) => !v)}>
           {all ? '적재본 감추기' : '적재본 보기'}
         </button>
-        <span style={{ flex: 1 }} />
-        <a href="/sources" style={{ color: 'inherit' }}>
-          소스
-        </a>
       </div>
 
       {dialog}
