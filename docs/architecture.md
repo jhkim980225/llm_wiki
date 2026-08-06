@@ -65,6 +65,7 @@ flowchart LR
 
 ## 관련 문서
 
+- 그래프 DB vs RDB 역할 상세(적재 이유·검색 경로·FAQ): `docs/db-roles.md`
 - 실행·배포·Fuseki 현황: `README.md`
 - RAG 파이프라인(/ask 내부): `docs/rag-architecture.md`
 - UI 표준: `docs/design.md`

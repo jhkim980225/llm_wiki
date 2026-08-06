@@ -11,6 +11,7 @@
 | `docs/design.md` | **UI 디자인 표준** — 화면 작업 전 필독. 어긋나면 문서부터 고친다 |
 | `docs/기능정의서.md` | 구현 완료/예정 기능 목록 (격식체, 팀 공유용) |
 | `docs/architecture.md` | 시스템 구조도 — Fuseki(원본)·Postgres(작업본) 역할 분담, 데이터 흐름 |
+| `docs/db-roles.md` | 그래프 DB vs RDB 역할 상세 — 적재가 필요한 이유, 검색 3경로, Wikidata 선례, FAQ |
 | `docs/rag-architecture.md` | RAG 파이프라인 구조 — 검색 3갈래·예산·생성 규칙·확장 로드맵 |
 | `docs/superpowers/specs/2026-08-04-wiki-v2-design.md` | v2 설계 결정 기록 |
 
