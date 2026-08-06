@@ -43,8 +43,18 @@ export function llmConfig(env: Env = process.env): LlmConfig {
  * 키는 프로바이더 이름과 같아야 하므로 createOpenAICompatible의 name과 맞춰 둔다.
  */
 export function llmProviderOptions(config: LlmConfig = llmConfig()) {
-  if (config.backend !== 'vllm') return undefined
-  return { vllm: { chat_template_kwargs: { enable_thinking: false } } }
+  if (config.backend === 'vllm') {
+    return { vllm: { chat_template_kwargs: { enable_thinking: false } } }
+  }
+  if (config.backend === 'openai') {
+    // gpt-5.6 계열은 chat/completions에서 함수 도구 + reasoning 조합을 거부한다
+    // ("Function tools with reasoning_effort are not supported ... set reasoning_effort to 'none'").
+    // Responses API로 갈아타기 전까지는 reasoning을 끄고 쓴다.
+    // 키는 SDK가 아는 camelCase(reasoningEffort)여야 body의 reasoning_effort로 변환된다 —
+    // snake_case로 주면 zod 파싱에서 조용히 버려진다 (아래 목 서버 테스트로 검증).
+    return { openai: { reasoningEffort: 'none' } }
+  }
+  return undefined
 }
 
 export function llmModel(config: LlmConfig = llmConfig()): LanguageModel {

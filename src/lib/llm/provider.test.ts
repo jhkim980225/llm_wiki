@@ -42,8 +42,10 @@ describe('llmProviderOptions', () => {
     expect(llmProviderOptions({ backend: 'ollama', baseURL: '', model: '' })).toBeUndefined()
   })
 
-  it('OpenAI에는 vLLM 전용 필드를 보내지 않는다 (미지 파라미터 400 방지)', () => {
-    expect(llmProviderOptions({ backend: 'openai', baseURL: '', model: '' })).toBeUndefined()
+  it('OpenAI에는 reasoningEffort=none을 보낸다 (chat/completions 툴 호출 제약)', () => {
+    expect(llmProviderOptions({ backend: 'openai', baseURL: '', model: '' })).toEqual({
+      openai: { reasoningEffort: 'none' },
+    })
   })
 })
 
@@ -83,6 +85,20 @@ describe('실제 요청 body', () => {
         resolve(`http://127.0.0.1:${typeof addr === 'object' && addr ? addr.port : 0}/v1`)
       })
     })
+
+  it('openai 백엔드는 reasoning_effort=none이 body에 담겨 나간다', async () => {
+    let sent: Record<string, unknown> = {}
+    const baseURL = await listen((b) => (sent = b as Record<string, unknown>))
+
+    const config = { backend: 'openai' as const, baseURL, model: 'gpt-5.6-luna' }
+    await generateText({
+      model: llmModel(config),
+      prompt: '안녕',
+      providerOptions: llmProviderOptions(config),
+    })
+
+    expect(sent.reasoning_effort).toBe('none')
+  })
 
   it('chat_template_kwargs.enable_thinking=false가 body에 담겨 나간다', async () => {
     let sent: Record<string, unknown> = {}
