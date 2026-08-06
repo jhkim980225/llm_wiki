@@ -17,6 +17,14 @@ describe('llmConfig', () => {
     expect(c.model).toBe('qwen3:14b')
   })
 
+  it('LLM_BACKEND=openai면 OpenAI API 기본값을 쓴다', () => {
+    const c = llmConfig({ LLM_BACKEND: 'openai', LLM_API_KEY: 'sk-x' })
+    expect(c.backend).toBe('openai')
+    expect(c.baseURL).toBe('https://api.openai.com/v1')
+    expect(c.model).toBe('gpt-5.6-luna')
+    expect(c.apiKey).toBe('sk-x')
+  })
+
   it('환경변수가 기본값을 이긴다', () => {
     const c = llmConfig({ LLM_BASE_URL: 'http://x/v1', LLM_MODEL: 'm' })
     expect(c.baseURL).toBe('http://x/v1')
@@ -32,6 +40,10 @@ describe('llmProviderOptions', () => {
 
   it('Ollama에는 vLLM 전용 필드를 보내지 않는다', () => {
     expect(llmProviderOptions({ backend: 'ollama', baseURL: '', model: '' })).toBeUndefined()
+  })
+
+  it('OpenAI에는 vLLM 전용 필드를 보내지 않는다 (미지 파라미터 400 방지)', () => {
+    expect(llmProviderOptions({ backend: 'openai', baseURL: '', model: '' })).toBeUndefined()
   })
 })
 

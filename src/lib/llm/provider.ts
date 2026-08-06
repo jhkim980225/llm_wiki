@@ -1,7 +1,7 @@
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
 import type { LanguageModel } from 'ai'
 
-export type LlmBackend = 'vllm' | 'ollama'
+export type LlmBackend = 'vllm' | 'ollama' | 'openai'
 
 export type LlmConfig = {
   backend: LlmBackend
@@ -15,12 +15,15 @@ const DEFAULTS: Record<LlmBackend, { baseURL: string; model: string }> = {
   vllm: { baseURL: 'http://192.168.10.7/v1', model: 'qwen3-32b-finance' },
   // 사내 Ollama. vLLM이 죽었을 때의 대체 경로.
   ollama: { baseURL: 'http://192.168.0.152:11434/v1', model: 'qwen3:14b' },
+  // OpenAI API. LLM_API_KEY 필수. gpt-5.6 별칭은 Sol로 가므로 -luna를 명시한다.
+  openai: { baseURL: 'https://api.openai.com/v1', model: 'gpt-5.6-luna' },
 }
 
 type Env = Record<string, string | undefined>
 
 export function llmConfig(env: Env = process.env): LlmConfig {
-  const backend: LlmBackend = env.LLM_BACKEND === 'ollama' ? 'ollama' : 'vllm'
+  const backend: LlmBackend =
+    env.LLM_BACKEND === 'ollama' || env.LLM_BACKEND === 'openai' ? env.LLM_BACKEND : 'vllm'
   const d = DEFAULTS[backend]
   return {
     backend,
