@@ -1,5 +1,27 @@
 import { describe, it, expect } from 'vitest'
-import { stripInlineSources, splitDoc } from './compose'
+import { stripInlineSources, splitDoc, stripEmailRefs } from './compose'
+
+describe('stripEmailRefs', () => {
+  it('참고 절에서 이메일이 든 항목만 지운다', () => {
+    const input = [
+      '본문 juhyeok@sungjin.co.kr 은 남는다',
+      '',
+      '## 참고',
+      '- [[a|문서 A]]',
+      '- 홍길동 (gildong@corp.com)',
+      '- 파일.pdf',
+    ].join('\n')
+    const out = stripEmailRefs(input)
+    expect(out).toContain('juhyeok@sungjin.co.kr') // 본문은 안 건드린다
+    expect(out).toContain('문서 A')
+    expect(out).toContain('파일.pdf')
+    expect(out).not.toContain('gildong')
+  })
+
+  it('참고 절이 없으면 그대로 둔다', () => {
+    expect(stripEmailRefs('그냥 본문')).toBe('그냥 본문')
+  })
+})
 
 describe('stripInlineSources', () => {
   it('본문에 박힌 소스 id를 지운다', () => {

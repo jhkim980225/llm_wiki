@@ -1,7 +1,12 @@
 import { normalizeSlug } from './slug'
 
-/** [[wiki-link]] 문법 매칭. `]`를 포함하지 않는 내용만 링크로 본다. */
-export const WIKI_LINK_RE = /\[\[([^\]]+)\]\]/g
+/**
+ * [[wiki-link]] 문법 매칭.
+ * 표시명에 단일 대괄호를 허용한다 — 이메일 제목 유래 라벨이 "[성진] …"처럼
+ * 대괄호로 시작해서, `]`를 전부 금지하면 그 링크가 통째로 평문 노출된다(실측).
+ * `]]`(닫힘)만 링크의 끝으로 본다.
+ */
+export const WIKI_LINK_RE = /\[\[((?:[^\]]|\](?!\]))+)\]\]/g
 
 /** [[slug]] / [[slug|표시명]]의 내부 텍스트에서 slug 부분만 돌려준다. */
 export function extractWikiSlug(inner: string): string {
@@ -30,16 +35,25 @@ export function parseOutLinks(content: string): string[] {
  * LLM이 생성한 본문의 [[링크]]를 실존 문서 목록과 대조해 정리한다.
  *
  * - 실존 slug를 가리키는 완결 링크만 남긴다
- * - 없는 문서를 가리키는 링크는 표시명 평문으로 바꾼다 — 그래프에만 있는 개체를
- *   [[seunghoon/…]]처럼 태깅해 죽은 링크가 되는 것을 막는다
+ * - slug 자리가 실제로는 **제목**(파일명 등)인 링크는 byTitle(제목→slug)로 찾아
+ *   [[slug|제목]]으로 고쳐 잇는다 — LLM이 소스 접두사(seunghoon/…)를 모르기 때문
+ * - 그래도 못 찾으면 표시명 평문으로 바꾼다 (죽은 링크 방지)
  * - 짝을 잃은 `[[`(생성이 중간에 잘린 경우)는 그 줄의 대괄호를 걷어낸다
  */
-export function sanitizeWikiLinks(content: string, validSlugs: Set<string>): string {
+export function sanitizeWikiLinks(
+  content: string,
+  validSlugs: Set<string>,
+  byTitle: Map<string, string> = new Map(),
+): string {
   const resolved = content.replace(WIKI_LINK_RE, (whole, inner: string) => {
-    const slug = normalizeSlug(extractWikiSlug(inner))
+    const raw = extractWikiSlug(inner)
+    const slug = normalizeSlug(raw)
     if (validSlugs.has(slug)) return whole
     const pipe = inner.indexOf('|')
-    return (pipe >= 0 ? inner.slice(pipe + 1) : inner).trim()
+    const display = (pipe >= 0 ? inner.slice(pipe + 1) : inner).trim()
+    const titled = byTitle.get(raw) ?? byTitle.get(display)
+    if (titled) return `[[${titled}|${display}]]`
+    return display
   })
 
   // 남은 링크는 전부 유효하다. 줄 안에서 [[와 ]] 개수가 어긋나면 잘린 링크 잔재이므로

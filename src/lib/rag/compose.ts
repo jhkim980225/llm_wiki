@@ -6,7 +6,7 @@ import { attributesFor, type Attributed } from '@/lib/agent/tools'
 import { generateJson } from '@/lib/llm/json'
 import { llmConfig, llmModel, llmProviderOptions } from '@/lib/llm/provider'
 import { normalizeSlug } from '@/lib/wiki/slug'
-import { parseOutLinks, sanitizeWikiLinks } from '@/lib/wiki/links'
+import { parseOutLinks, sanitizeWikiLinks, WIKI_LINK_RE } from '@/lib/wiki/links'
 import { createOrRevivePage, savePage } from '@/lib/pages/save'
 import { db } from '@/lib/db'
 
@@ -258,6 +258,8 @@ function writeSystem(graph: GraphResult, extra: string[] = []): string {
     '- 마지막은 반드시 `## 참고` 절로 끝낸다. 근거로 쓴 문서를 목록으로 적고,',
     '  "위키에 문서가 있는 것"에 있는 항목은 준 그대로 [[slug|이름]] 형태로 링크한다.',
     '  링크가 없는 항목은 이름만 적고 뒤에 어느 그래프에서 왔는지 덧붙인다.',
+    '- 사람 이름·이메일 주소·개인 연락처는 본문에도 참고 절에도 넣지 마라.',
+    '  참고 절에는 문서·파일·개체만 적는다.',
     '- 조회하지 못한 그래프가 있으면 참고 절 끝에 한 줄로 적어라.',
     '  실패는 "그런 사실이 없다"가 아니라 "확인하지 못했다"이다. 둘을 섞지 마라.',
     '- 서로 다른 그래프의 내용이 어긋나면 어느 쪽이 무엇이라 했는지 참고 절에 적어라.',
@@ -330,19 +332,53 @@ export function splitDoc(markdown: string, fallbackTitle: string): Draft {
 
 export type Draft = { title: string; summary: string; content: string }
 
+/** 참고 절(## 참고 ~ 끝)에서 이메일 주소가 든 항목 줄을 걷어낸다. 이름은 프롬프트 규칙이 막는다. */
+export function stripEmailRefs(content: string): string {
+  const at = content.search(/^##\s*참고\s*$/m)
+  if (at < 0) return content
+  const head = content.slice(0, at)
+  const refs = content
+    .slice(at)
+    .split('\n')
+    .filter((line) => !/[\w.+-]+@[\w-]+\.[\w.-]+/.test(line))
+    .join('\n')
+  return head + refs
+}
+
 /**
  * 생성된 초안의 [[링크]]를 실존 문서와 대조해 정리한다.
  * 없는 문서 링크는 평문으로, 잘린 대괄호는 제거 — 프롬프트로는 못 막는다(실측).
+ * LLM이 [[파일명]]처럼 제목으로 태깅한 링크는 제목 조회로 실제 slug를 찾아 잇는다
+ * (소스 접두사 seunghoon/… 를 LLM이 모른다 — 실측: 바코드·통장 파일명 전부 평문 강등됐다).
  */
 export async function sanitizeDraftLinks(draft: Draft): Promise<Draft> {
   const targets = parseOutLinks(draft.content)
-  const found = targets.length
-    ? await db.page.findMany({
-        where: { slug: { in: targets }, deletedAt: null },
-        select: { slug: true },
-      })
-    : []
-  return { ...draft, content: sanitizeWikiLinks(draft.content, new Set(found.map((f) => f.slug))) }
+
+  // slug 매칭 실패 시 제목으로 찾을 후보 — 링크 안의 원문(slug 자리·표시명)
+  const rawTexts = new Set<string>()
+  for (const m of draft.content.matchAll(WIKI_LINK_RE)) {
+    const inner = m[1]
+    const pipe = inner.indexOf('|')
+    rawTexts.add((pipe >= 0 ? inner.slice(0, pipe) : inner).trim())
+    if (pipe >= 0) rawTexts.add(inner.slice(pipe + 1).trim())
+  }
+
+  const found =
+    targets.length || rawTexts.size
+      ? await db.page.findMany({
+          where: {
+            deletedAt: null,
+            OR: [{ slug: { in: targets } }, { title: { in: [...rawTexts] } }],
+          },
+          select: { slug: true, title: true },
+        })
+      : []
+
+  const valid = new Set(found.map((f) => f.slug))
+  const byTitle = new Map<string, string>()
+  for (const f of found) if (!byTitle.has(f.title)) byTitle.set(f.title, f.slug)
+
+  return { ...draft, content: stripEmailRefs(sanitizeWikiLinks(draft.content, valid, byTitle)) }
 }
 
 /** 4단계 — 스트림을 끝까지 모아 문서 하나로 만든다. */

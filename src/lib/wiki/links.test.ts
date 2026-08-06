@@ -32,6 +32,12 @@ describe('parseOutLinks', () => {
       'fuseki',
     ])
   })
+
+  it('표시명에 단일 대괄호가 있어도 링크를 읽는다 (이메일 제목 유래 라벨)', () => {
+    expect(parseOutLinks('[[ejkim/성진-a|[성진] 파일 송부의 건]]')).toEqual(['ejkim/성진-a'])
+    // 한 줄에 링크 둘 — 서로 잡아먹지 않는다
+    expect(parseOutLinks('[[a]] 그리고 [[b|[x] y]]')).toEqual(['a', 'b'])
+  })
 })
 
 import { computeForbiddenSpans } from './links'
@@ -158,6 +164,23 @@ describe('sanitizeWikiLinks', () => {
       '출처: MSDS (seunghoon)',
     )
     expect(sanitizeWikiLinks('[[ghost]]', valid)).toBe('ghost')
+  })
+
+  it('제목으로 태깅한 링크는 byTitle로 실제 slug를 찾아 잇는다 (파일명 태깅)', () => {
+    const byTitle = new Map([['성진 통장.jpg', 'seunghoon/성진-통장.jpg']])
+    expect(sanitizeWikiLinks('첨부: [[성진 통장.jpg]]', valid, byTitle)).toBe(
+      '첨부: [[seunghoon/성진-통장.jpg|성진 통장.jpg]]',
+    )
+    // 표시명 쪽이 제목과 일치해도 찾는다
+    expect(sanitizeWikiLinks('[[없는-slug|성진 통장.jpg]]', valid, byTitle)).toBe(
+      '[[seunghoon/성진-통장.jpg|성진 통장.jpg]]',
+    )
+  })
+
+  it('표시명에 대괄호가 든 실존 링크는 살아남는다', () => {
+    const v = new Set(['ejkim/성진-a'])
+    const input = '[[ejkim/성진-a|[성진] 파일 송부의 건]]'
+    expect(sanitizeWikiLinks(input, v)).toBe(input)
   })
 
   it('짝 잃은 [[ 는 그 줄의 대괄호를 걷어낸다', () => {
