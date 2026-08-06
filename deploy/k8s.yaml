@@ -91,10 +91,13 @@ data:
   ONTOLOGY_SEUNGHOON_URL: http://192.168.0.100:30310
   FUSEKI_URL: http://192.168.0.100:31406
   FUSEKI_DATASET: ds
-  # vLLM은 채팅에서만 쓴다. 적재 경로는 LLM을 타지 않는다.
-  LLM_BACKEND: vllm
-  LLM_BASE_URL: http://192.168.10.7/v1
-  LLM_MODEL: qwen3-32b-finance
+  # LLM은 채팅·AI 작성에서만 쓴다. 적재 경로는 LLM을 타지 않는다.
+  # openai 백엔드 — API 키는 configmap이 아니라 wiki-graph-llm Secret에 있다
+  # (클러스터에 직접 생성, git에 남기지 않는다):
+  #   kubectl -n jh-wiki-graph create secret generic wiki-graph-llm --from-literal=LLM_API_KEY=sk-...
+  # vLLM으로 되돌리려면: LLM_BACKEND: vllm / LLM_BASE_URL: http://192.168.10.7/v1 / LLM_MODEL: qwen3-32b-finance
+  LLM_BACKEND: openai
+  LLM_MODEL: gpt-5.6-luna
   # 의미검색 임베딩 백엔드 (사내 Ollama, embeddinggemma 768차원)
   EMBED_URL: http://192.168.0.152:11434
   EMBED_MODEL: embeddinggemma
@@ -126,10 +129,12 @@ spec:
             - configMapRef: { name: wiki-graph-env }
       containers:
         - name: app
-          image: wiki-graph:0.16.3
+          image: wiki-graph:0.17.0
           imagePullPolicy: Never
           envFrom:
             - configMapRef: { name: wiki-graph-env }
+            # LLM API 키. optional — 없으면 뜨긴 뜨되 채팅만 안 된다 (vLLM 복귀 시에도 안전)
+            - secretRef: { name: wiki-graph-llm, optional: true }
           ports: [{ containerPort: 3000 }]
           readinessProbe:
             httpGet: { path: /api/ontology, port: 3000 }
