@@ -2940,3 +2940,76 @@ a.card:hover {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+/* ── 옵시디언식 사이드바 접기 — 햄버거로 아이콘만, >>로 복귀 ─────── */
+
+.rail-head {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0 0 16px;
+}
+
+.rail-head .logo {
+  flex: 1;
+  min-width: 0;
+  margin: 0 0 0 6px;
+}
+
+.rail-head .logo span {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rail-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  border: 0;
+  border-radius: var(--r);
+  background: none;
+  color: var(--text-faint);
+  cursor: pointer;
+  transition: background var(--fast), color var(--fast);
+}
+
+.rail-toggle:hover {
+  background: var(--hover);
+  color: var(--text-body);
+}
+
+/* 접힘: 레일은 아이콘 전용 52px, 문서 트리 숨김 (.sidebar는 기존 규칙이 숨긴다) */
+.vault.collapsed {
+  grid-template-columns: 52px 1fr;
+}
+
+.vault.collapsed .rail {
+  padding-left: 6px;
+  padding-right: 6px;
+}
+
+.vault.collapsed .rail-head {
+  flex-direction: column;
+  gap: 8px;
+}
+
+.vault.collapsed .rail-head .logo {
+  display: none;
+}
+
+.vault.collapsed .side-item {
+  justify-content: center;
+  padding: 0;
+}
+
+.vault.collapsed .side-item span {
+  display: none;
+}
+
+.vault.collapsed .side-item.on::before {
+  left: -6px;
+}

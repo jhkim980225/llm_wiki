@@ -65,16 +65,17 @@ export function SidebarItem({
   onClick?: () => void
 }) {
   const cls = cn('side-item', on && 'on')
+  // title은 접힘(아이콘 전용) 상태의 유일한 라벨이다
   if (href) {
     return (
-      <a href={href} className={cls} aria-label={label}>
+      <a href={href} className={cls} aria-label={label} title={label}>
         {icon}
         <span>{label}</span>
       </a>
     )
   }
   return (
-    <button className={cls} onClick={onClick} aria-label={label}>
+    <button className={cls} onClick={onClick} aria-label={label} title={label}>
       {icon}
       <span>{label}</span>
     </button>

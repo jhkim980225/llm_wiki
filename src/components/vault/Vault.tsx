@@ -2,8 +2,9 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import {
-  FileText,
+  ChevronsRight,
   Home,
+  Menu,
   Settings as SettingsIcon,
   Share2,
   Sparkles,
@@ -32,6 +33,17 @@ export function Vault({ children }: { children: ReactNode }) {
 
   const [collapsed, setCollapsed] = useState(false)
   const [settings, setSettings] = useState(false)
+
+  // 접힘 상태는 localStorage에 기억한다. SSR과의 hydration 불일치를 피해 effect에서 읽는다.
+  useEffect(() => {
+    setCollapsed(localStorage.getItem('sidebar-collapsed') === '1')
+  }, [])
+  const toggleCollapsed = () => {
+    setCollapsed((c) => {
+      localStorage.setItem('sidebar-collapsed', c ? '0' : '1')
+      return !c
+    })
+  }
 
   // 홈 가이드 등 셸 밖 컴포넌트가 설정 모달을 열 수 있게 이벤트를 받는다
   useEffect(() => {
@@ -63,18 +75,23 @@ export function Vault({ children }: { children: ReactNode }) {
   return (
     <div className={`vault${collapsed ? ' collapsed' : ''}`} onClick={intercept}>
       <nav className="rail" aria-label="글로벌 내비게이션">
-        <a className="logo" href="/" aria-label="주식회사 성진 홈">
-          <Share2 size={18} aria-hidden />
-          <span>주식회사 성진</span>
-        </a>
+        <div className="rail-head">
+          <a className="logo" href="/" aria-label="주식회사 성진 홈">
+            <Share2 size={18} aria-hidden />
+            <span>주식회사 성진</span>
+          </a>
+          {/* 옵시디언식 접기 — 접으면 아이콘만 남고 문서 트리도 숨는다. >>로 복귀 */}
+          <button
+            className="rail-toggle"
+            aria-label={collapsed ? '사이드바 펼치기' : '사이드바 접기'}
+            title={collapsed ? '사이드바 펼치기' : '사이드바 접기'}
+            onClick={toggleCollapsed}
+          >
+            {collapsed ? <ChevronsRight size={16} /> : <Menu size={16} />}
+          </button>
+        </div>
 
         <SidebarItem icon={<Home size={IC} aria-hidden />} label="홈" href="/" on={pathname === '/'} />
-        {/* 트리 접기/펼치기 토글 — 위치 표시가 아니라서 on을 주지 않는다 (과다 강조 금지) */}
-        <SidebarItem
-          icon={<FileText size={IC} aria-hidden />}
-          label="문서"
-          onClick={() => setCollapsed((c) => !c)}
-        />
         <SidebarItem
           icon={<Waypoints size={IC} aria-hidden />}
           label="그래프"
