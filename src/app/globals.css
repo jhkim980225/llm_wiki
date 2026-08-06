@@ -2735,20 +2735,6 @@ a.card:hover {
   border-color: rgb(45 212 191 / 25%);
 }
 
-.editor-summary {
-  border: 0;
-  border-bottom: 1px solid var(--line);
-  border-radius: 0;
-  padding: 6px 0 10px;
-  background: none;
-  color: var(--text-body);
-  font-size: 13.5px;
-}
-
-.editor-summary:focus {
-  outline: none;
-  border-bottom-color: var(--line-strong);
-}
 
 .editor-toolbar {
   display: flex;
@@ -2896,4 +2882,61 @@ a.card:hover {
   .editor-info {
     display: none;
   }
+}
+
+/* 본문 [[링크]] 자동완성 드롭다운 */
+.editor-body-wrap {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.link-suggest {
+  position: absolute;
+  z-index: 40;
+  min-width: 240px;
+  max-width: 360px;
+  padding: 4px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-lg);
+  background: var(--panel);
+  /* popover 범주 — 약한 그림자 허용 (docs/design.md) */
+  box-shadow: 0 6px 20px rgb(0 0 0 / 35%);
+}
+
+.link-suggest button {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 10px;
+  border: 0;
+  border-radius: 5px;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+}
+
+.link-suggest button.on {
+  background: var(--sel);
+}
+
+.link-suggest .t {
+  color: var(--text);
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.link-suggest .s {
+  color: var(--text-faint);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
