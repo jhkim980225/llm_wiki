@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Building2, ChevronDown, Eye, EyeOff, ShieldCheck, Waypoints } from 'lucide-react'
 import { LOGIN_ID_RE } from '@/lib/auth/password'
 import { toast } from '@/lib/toast'
+import { version } from '../../../package.json'
 
 /** 배경 장식 — 문서 노드 그래프 패턴. 아주 낮은 투명도, 왼쪽 하단 고정. */
 function GraphPattern() {
@@ -249,7 +250,9 @@ export default function LoginPage() {
 
       <footer className="login-foot">
         <span>© 2026 주식회사 성진. All rights reserved.</span>
-        <span>보안 · 개인정보 처리방침 · 이용약관</span>
+        <span>
+          보안 · 개인정보 처리방침 · 이용약관 · v{version}
+        </span>
       </footer>
     </main>
   )

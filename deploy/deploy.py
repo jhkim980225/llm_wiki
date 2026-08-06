@@ -78,6 +78,14 @@ def main():
     tar = ROOT / f"wiki-graph-{ver}.tar"
     tgz = ROOT / f"wiki-graph-{ver}.tar.gz"
 
+    # 0) package.json 버전 동기화 — UI가 이 값을 하단에 표시한다. 빌드 전에 해야 반영된다.
+    pkg = ROOT / "package.json"
+    pkg.write_text(
+        re.sub(r'"version": "[^"]+"', f'"version": "{ver}"', pkg.read_text(encoding="utf-8"), count=1),
+        encoding="utf-8",
+    )
+    print(f"package.json → {ver}")
+
     # 1) 빌드 + tar + gzip (업로드가 병목이라 압축이 전체 시간을 크게 줄인다)
     if not skip_build:
         sh(["docker", "build", "-t", tag, "."])

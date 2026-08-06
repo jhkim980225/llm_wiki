@@ -14,6 +14,7 @@ import {
 import { SidebarItem } from '@/components/ui'
 import { FileTree } from './FileTree'
 import { Settings } from './Settings'
+import { version } from '../../../package.json'
 
 /** 현재 열린 문서의 slug. 경로가 /wiki/a/b 면 "a/b". */
 function slugFromPath(pathname: string): string {
@@ -110,6 +111,9 @@ export function Vault({ children }: { children: ReactNode }) {
           on={settings}
           onClick={() => setSettings(true)}
         />
+        <span className="rail-version" title={`버전 v${version}`}>
+          v{version}
+        </span>
       </nav>
 
       {settings && <Settings onClose={() => setSettings(false)} />}

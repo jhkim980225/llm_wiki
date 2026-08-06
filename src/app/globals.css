@@ -3013,3 +3013,15 @@ a.card:hover {
 .vault.collapsed .side-item.on::before {
   left: -6px;
 }
+
+/* 레일 하단 버전 표기 — 배포 태그와 package.json을 deploy.py가 동기화한다 */
+.rail-version {
+  margin: 6px 6px 0;
+  color: var(--text-faint);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.vault.collapsed .rail-version {
+  display: none;
+}
