@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Building2, ChevronDown, Eye, EyeOff, ShieldCheck, Waypoints } from 'lucide-react'
 import { LOGIN_ID_RE } from '@/lib/auth/password'
+import { toast } from '@/lib/toast'
 
 /** 배경 장식 — 문서 노드 그래프 패턴. 아주 낮은 투명도, 왼쪽 하단 고정. */
 function GraphPattern() {
@@ -63,16 +64,21 @@ export default function LoginPage() {
       })
       const body = await res.json().catch(() => ({}))
       if (!res.ok) {
-        setTopErr(body.message ?? `요청에 실패했습니다 (HTTP ${res.status})`)
+        const message = body.message ?? `요청에 실패했습니다 (HTTP ${res.status})`
+        setTopErr(message)
+        // 잠금·rate limit은 상태가 바뀐 것이라 토스트로도 강조한다. 단순 오답은 인라인만.
+        if (res.status === 423 || res.status === 429) toast(message, 'error')
         return
       }
       if (!body.workspace && Array.isArray(body.workspaces) && body.workspaces.length > 0) {
         setChoices(body.workspaces)
         return
       }
+      toast(`환영합니다, ${body.user?.displayName || body.user?.loginId || ''}님`, 'success')
       router.replace('/')
     } catch {
       setTopErr('서버에 연결할 수 없습니다.')
+      toast('서버에 연결할 수 없습니다.', 'error')
     } finally {
       setBusy(false)
     }
@@ -86,8 +92,13 @@ export default function LoginPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ workspaceId }),
       })
-      if (res.ok) router.replace('/')
-      else setTopErr('워크스페이스 진입에 실패했습니다.')
+      if (res.ok) {
+        toast('워크스페이스에 접속했습니다.', 'success')
+        router.replace('/')
+      } else {
+        setTopErr('워크스페이스 진입에 실패했습니다.')
+        toast('워크스페이스 진입에 실패했습니다.', 'error')
+      }
     } finally {
       setBusy(false)
     }

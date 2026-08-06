@@ -83,6 +83,8 @@ font-family: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFon
 - border-radius: 기본 6px · 큰 컨테이너 8px · modal/popover 최대 10px
 - 버튼 높이: small 28 · default 34 · large 40. 아이콘 버튼 30×30. input 34
 - hover transition 120~160ms. scale/확대 금지
+- 토스트: 우상단 스택(최대 3개, 3.5초), `--panel` 배경 + 좌측 2px 상태 인디케이터.
+  상태 전환(성공·잠금·네트워크 오류)에만 — 단순 검증 오류는 인라인 aria-live로
 - `:focus-visible` 명확히 표시. `prefers-reduced-motion` 존중
 - `aria-label` 필수 (아이콘 전용 버튼)
 
@@ -161,3 +163,4 @@ radius 13px, 패딩 52px). 입력 52px, radius 8px, focus는 accent 테두리만
 - 2026-08-04 v1.1 — 드래그 드롭 강조는 폴더 행(drop-into)만. 트리 영역 전체 테두리 강조 제거 (기능은 유지)
 - 2026-08-06 v1.2 — 그래프 뷰(/graph) 기준 추가. '도입하지 않음' 결정을 뒤집고 옵시디언식 연결 그래프 도입 (시안 docs/mockups/graph-view-mockup.html)
 - 2026-08-06 v1.3 — 로그인 화면 기준 추가. 공유 비밀번호 게이트를 이메일/비밀번호 계정 인증으로 교체
+- 2026-08-06 v1.4 — 전역 토스트 규칙 추가 (로그인 성공·잠금·네트워크 오류 피드백)

@@ -2511,3 +2511,68 @@ a.card:hover {
   color: var(--text-faint);
   font-size: 12px;
 }
+
+/* ── 전역 토스트 — 우상단 스택, 상태 전환 피드백 전용 ─────────────── */
+
+.toaster {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  pointer-events: none;
+}
+
+.toast {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  max-width: 360px;
+  padding: 10px 14px;
+  border: 1px solid var(--line-strong);
+  border-left-width: 2px;
+  border-radius: var(--r-lg);
+  background: var(--panel);
+  color: var(--text-body);
+  font-size: 13px;
+  /* popover 범주 — 약한 그림자 허용 (docs/design.md) */
+  box-shadow: 0 4px 16px rgb(0 0 0 / 30%);
+  animation: toast-in 140ms ease;
+}
+
+.toast svg {
+  flex-shrink: 0;
+}
+
+.toast.success {
+  border-left-color: var(--accent);
+}
+
+.toast.success svg {
+  color: var(--accent);
+}
+
+.toast.error {
+  border-left-color: var(--danger);
+}
+
+.toast.error svg {
+  color: var(--danger);
+}
+
+.toast.info {
+  border-left-color: var(--text-faint);
+}
+
+.toast.info svg {
+  color: var(--text-dim);
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
