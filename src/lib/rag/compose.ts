@@ -1,7 +1,7 @@
 import { streamText } from 'ai'
 import { z } from 'zod'
 import { searchGraphs, type GraphResult } from '@/lib/fuseki/client'
-import { askKakaoRag, kakaoRagUrl } from './kakao-rag'
+import { askSourceRag, ragUrl, hasRagApi } from './source-rag'
 import { QUERY_SOURCES } from '@/lib/ontology/source'
 import { attributesFor, type Attributed } from '@/lib/agent/tools'
 import { generateJson } from '@/lib/llm/json'
@@ -37,8 +37,8 @@ const EVIDENCE_CHARS = 12_000
 /** 위키 근거 발췌 전체 예산. 그래프 근거(12,000자)와 별도로 잡는다. */
 const WIKI_CHARS = 3_600
 
-/** 카카오 RAG API 답변 예산. 이미 요약된 자연어라 길게 줄 필요 없다. */
-const KAKAO_CHARS = 4_000
+/** 소스 RAG API 답변 하나당 예산. 이미 요약된 자연어라 길게 줄 필요 없다. */
+const SOURCE_ANSWER_CHARS = 4_000
 
 /** 용어당 위키 문서 수 상한. */
 const WIKI_PER_TERM = 3
@@ -172,16 +172,17 @@ function renderEvidence(
   evidence: Attributed[],
   links: Map<string, string>,
   wiki: WikiHit[] = [],
-  kakaoAnswer?: string,
+  sourceAnswers: { name: string; answer: string }[] = [],
 ): string {
   const lines: string[] = []
 
-  if (kakaoAnswer) {
+  for (const s of sourceAnswers) {
     lines.push(
-      '## 카카오 지식그래프 답변 (전용 API가 준 자연어 답변이다)',
+      `## ${s.name} 답변 (전용 API가 준 자연어 답변이다)`,
       '아래 내용을 **요약해서** 다른 근거와 통합하라. 문단을 통째로 옮기지 마라.',
       '',
-      kakaoAnswer.slice(0, KAKAO_CHARS) + (kakaoAnswer.length > KAKAO_CHARS ? '\n…(이하 생략)' : ''),
+      s.answer.slice(0, SOURCE_ANSWER_CHARS) +
+        (s.answer.length > SOURCE_ANSWER_CHARS ? '\n…(이하 생략)' : ''),
       '',
     )
   }
@@ -273,33 +274,49 @@ export function interleaveBySource<T extends { source: string }>(items: T[]): T[
   return out
 }
 
+/** GraphResult 빈 껍데기 — 전용 API로만 조회할 때 상태·질의를 여기에 채운다. */
+const emptyGraph = (): GraphResult => ({
+  nodes: [],
+  edges: [],
+  textHits: [],
+  sources: [],
+  queries: [],
+})
+
 /**
  * 2·3단계 — 근거 수집. 소스별 경로가 갈린다 (feat/source-apis):
- * - ejkim·seunghoon: SPARQL 직조회 (기존 그대로)
- * - kakao: 전용 RAG API에 **질문 원문**을 넘겨 자연어 답변을 받는다
+ * - 전용 RAG API가 있는 소스(ejkim·kakao·seunghoon): **질문 원문**을 넘겨 자연어 답변을 받는다
+ * - API가 없는 소스: SPARQL 직조회로 남는다 (현재는 해당 없음)
  * - 위키: Postgres 발췌
- * 셋 다 독립이라 동시에 던진다 — kakao API가 40초쯤 걸려도 벽시계는 그만큼만.
+ * 전부 독립이라 동시에 던진다 — 한 API가 40초쯤 걸려도 벽시계는 그만큼만.
  */
 export async function retrieve(request: string, terms: string[]): Promise<Retrieved> {
-  const sparqlSources = QUERY_SOURCES.filter((s) => s.id !== 'kakao')
-  const [graph, wiki, kakao] = await Promise.all([
-    searchGraphs(terms, sparqlSources),
+  const ragSources = QUERY_SOURCES.filter((s) => hasRagApi(s.id))
+  const sparqlSources = QUERY_SOURCES.filter((s) => !hasRagApi(s.id))
+
+  const [graph, wiki, ...answers] = await Promise.all([
+    sparqlSources.length > 0 ? searchGraphs(terms, sparqlSources) : Promise.resolve(emptyGraph()),
     searchWiki(terms),
-    askKakaoRag(request),
+    ...ragSources.map((s) => askSourceRag(s.id, request)),
   ])
 
-  // kakao 상태·요청을 SPARQL 소스와 같은 자리에 끼운다 — UI(소스 상태·질의 보기)가 그대로 그린다
-  graph.sources.push({
-    id: 'kakao',
-    name: '카카오 지식그래프(API)',
-    ok: kakao.ok,
-    ...(kakao.error ? { error: kakao.error } : {}),
-  })
-  graph.queries.push({
-    source: 'kakao',
-    kind: 'api',
-    term: request,
-    sparql: `POST ${kakaoRagUrl()}\nContent-Type: application/json\n\n${JSON.stringify({ question: request }, null, 2)}`,
+  // 전용 API 소스의 상태·요청을 SPARQL 소스와 같은 자리에 끼운다 — UI가 그대로 그린다.
+  const sourceAnswers: { id: string; name: string; answer: string }[] = []
+  ragSources.forEach((s, i) => {
+    const r = answers[i]
+    graph.sources.push({
+      id: s.id,
+      name: `${s.name}(API)`,
+      ok: r.ok,
+      ...(r.error ? { error: r.error } : {}),
+    })
+    graph.queries.push({
+      source: s.id,
+      kind: 'api',
+      term: request,
+      sparql: `POST ${ragUrl(s.id)}\nContent-Type: application/json\n\n${JSON.stringify({ question: request }, null, 2)}`,
+    })
+    if (r.ok && r.answer) sourceAnswers.push({ id: s.id, name: s.name, answer: r.answer })
   })
 
   const targets = interleaveBySource(graph.nodes.length > 0 ? graph.nodes : graph.textHits)
@@ -307,7 +324,7 @@ export async function retrieve(request: string, terms: string[]): Promise<Retrie
   const links = await resolveLinks([...evidence, ...graph.textHits])
   // 위키 히트는 slug를 이미 아니 그대로 링크에 얹는다.
   for (const h of wiki) if (!links.has(h.title)) links.set(h.title, h.slug)
-  return { graph, wiki, evidence, links, kakaoAnswer: kakao.answer }
+  return { graph, wiki, evidence, links, sourceAnswers }
 }
 
 export type Retrieved = {
@@ -317,8 +334,8 @@ export type Retrieved = {
   evidence: Attributed[]
   /** 라벨 → 위키 slug. 참고란에서 [[링크]]로 걸 수 있는 것들. */
   links: Map<string, string>
-  /** 카카오 RAG API의 자연어 답변. 실패면 undefined — 상태는 graph.sources에 있다. */
-  kakaoAnswer?: string
+  /** 전용 RAG API 소스들의 자연어 답변(성공한 것만). 상태·실패는 graph.sources에 있다. */
+  sourceAnswers: { id: string; name: string; answer: string }[]
 }
 
 /** 작성 단계 지시문. 스트리밍·비스트리밍이 같은 규칙을 쓴다. */
@@ -359,21 +376,21 @@ function writeSystem(graph: GraphResult, extra: string[] = []): string {
  */
 export function writeDocStream(
   request: string,
-  { graph, wiki, evidence, links, kakaoAnswer }: Retrieved,
+  { graph, wiki, evidence, links, sourceAnswers }: Retrieved,
 ): ReturnType<typeof streamText> {
   const config = llmConfig()
   return streamText({
     model: llmModel(config),
     providerOptions: llmProviderOptions(config),
     system: writeSystem(graph, [
-      kakaoAnswer
-        ? '- "카카오 지식그래프 답변"도 근거다. 요약해 통합하고, 참고 절에는 "카카오 지식그래프" 한 줄만 적는다.'
+      sourceAnswers.length > 0
+        ? '- "…답변" 절(전용 API가 준 자연어 답변)도 근거다. 요약해 통합하고, 참고 절에는 해당 그래프 이름 한 줄만 적는다.'
         : '',
       '',
       '출력은 마크다운 본문 하나다. JSON도 코드펜스도 쓰지 마라.',
       '첫 줄은 반드시 `# 문서 제목` 형식의 제목줄로 시작한다.',
     ]),
-    prompt: `요청: ${request}\n\n---\n\n${renderEvidence(graph, evidence, links, wiki, kakaoAnswer)}`,
+    prompt: `요청: ${request}\n\n---\n\n${renderEvidence(graph, evidence, links, wiki, sourceAnswers)}`,
   })
 }
 

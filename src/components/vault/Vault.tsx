@@ -5,6 +5,7 @@ import {
   ChevronsRight,
   Home,
   Menu,
+  MessageSquare,
   Settings as SettingsIcon,
   Share2,
   Sparkles,
@@ -100,6 +101,7 @@ export function Vault({ children }: { children: ReactNode }) {
           on={pathname === '/graph'}
         />
         <SidebarItem icon={<Sparkles size={IC} aria-hidden />} label="AI 작성" href="/ask" on={pathname === '/ask'} />
+        <SidebarItem icon={<MessageSquare size={IC} aria-hidden />} label="채팅" href="/chat" on={pathname === '/chat'} />
         <SidebarItem icon={<Trash2 size={IC} aria-hidden />} label="휴지통" href="/trash" on={pathname === '/trash'} />
 
         <span className="grow" />

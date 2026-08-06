@@ -93,6 +93,8 @@ data:
   FUSEKI_DATASET: ds
   # kakao는 SPARQL 직조회 대신 전용 RAG API를 쓴다 (AI 작성 근거)
   KAKAO_RAG_URL: http://192.168.0.114:30309/kakao/api/rag/ask
+  EJKIM_RAG_URL: http://192.168.0.113:30311/ejkim/api/rag/ask
+  SEUNGHOON_RAG_URL: http://192.168.0.113:30313/api/rag/ask
   # LLM은 채팅·AI 작성에서만 쓴다. 적재 경로는 LLM을 타지 않는다.
   # openai 백엔드 — API 키는 configmap이 아니라 wiki-graph-llm Secret에 있다
   # (클러스터에 직접 생성, git에 남기지 않는다):
@@ -131,7 +133,7 @@ spec:
             - configMapRef: { name: wiki-graph-env }
       containers:
         - name: app
-          image: wiki-graph:0.23.4
+          image: wiki-graph:0.24.0
           imagePullPolicy: Never
           envFrom:
             - configMapRef: { name: wiki-graph-env }
