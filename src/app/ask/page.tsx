@@ -21,7 +21,13 @@ import { normalizeSlug } from '@/lib/wiki/slug'
 type SourceStatus = { id: string; name: string; ok: boolean; searchedText?: boolean; error?: string }
 type Draft = { title: string; summary: string; content: string }
 type WikiHit = { slug: string; title: string }
-type Graph = { sources: SourceStatus[]; nodes: unknown[]; textHits: unknown[] }
+type SparqlQuery = { source: string; kind: string; term: string; sparql: string }
+type Graph = {
+  sources: SourceStatus[]
+  nodes: unknown[]
+  textHits: unknown[]
+  queries?: SparqlQuery[]
+}
 
 /** 대화 한 칸. AI 메시지는 스트리밍 중 text가 자라고, 완료되면 draft가 붙는다. */
 type Msg =
@@ -395,6 +401,36 @@ function ContextPanel({
             <span className="meta">
               개체 {graph.nodes.length}건 · 본문 매치 {graph.textHits.length}건
             </span>
+            {graph.queries && graph.queries.length > 0 && (
+              <details style={{ marginTop: 8 }}>
+                <summary className="meta" style={{ cursor: 'pointer' }}>
+                  SPARQL {graph.queries.length}건 보기
+                </summary>
+                {graph.queries.map((q, i) => (
+                  <div key={i} style={{ margin: '8px 0' }}>
+                    <span className="meta">
+                      {q.source} · {q.kind === 'text' ? '리터럴 스캔' : '라벨 검색'} · “{q.term}”
+                    </span>
+                    <pre
+                      className="sparql"
+                      style={{
+                        margin: '4px 0 0',
+                        padding: '8px 10px',
+                        background: 'var(--panel)',
+                        border: '1px solid var(--line)',
+                        borderRadius: 6,
+                        fontSize: 11,
+                        lineHeight: 1.5,
+                        overflowX: 'auto',
+                        whiteSpace: 'pre-wrap',
+                      }}
+                    >
+                      {q.sparql}
+                    </pre>
+                  </div>
+                ))}
+              </details>
+            )}
           </>
         )}
       </div>

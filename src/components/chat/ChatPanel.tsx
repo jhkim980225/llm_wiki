@@ -104,11 +104,55 @@ export function ChatPanel() {
                     )
                   }
                   if (part.type.startsWith('tool-')) {
+                    // 그래프 도구 결과에는 실제로 나간 SPARQL이 실려 온다 — 접어서 보여준다.
+                    const queries =
+                      'output' in part &&
+                      part.output &&
+                      typeof part.output === 'object' &&
+                      'queries' in part.output
+                        ? (part.output.queries as {
+                            source: string
+                            kind: string
+                            term: string
+                            sparql: string
+                          }[])
+                        : null
                     return (
                       <div key={i} style={{ margin: '0.4rem 0' }}>
                         <span className="tag" style={{ color: 'var(--accent)' }}>
                           ⌬ {toolLabel(part.type)}
                         </span>
+                        {queries && queries.length > 0 && (
+                          <details style={{ marginTop: 6 }}>
+                            <summary className="meta" style={{ cursor: 'pointer' }}>
+                              SPARQL {queries.length}건 보기
+                            </summary>
+                            {queries.map((q, qi) => (
+                              <div key={qi} style={{ margin: '8px 0' }}>
+                                <span className="meta">
+                                  {q.source} · {q.kind === 'text' ? '리터럴 스캔' : '라벨 검색'} ·{' '}
+                                  “{q.term}”
+                                </span>
+                                <pre
+                                  className="sparql"
+                                  style={{
+                                    margin: '4px 0 0',
+                                    padding: '8px 10px',
+                                    background: 'var(--panel)',
+                                    border: '1px solid var(--line)',
+                                    borderRadius: 6,
+                                    fontSize: 11,
+                                    lineHeight: 1.5,
+                                    overflowX: 'auto',
+                                    whiteSpace: 'pre-wrap',
+                                  }}
+                                >
+                                  {q.sparql}
+                                </pre>
+                              </div>
+                            ))}
+                          </details>
+                        )}
                       </div>
                     )
                   }

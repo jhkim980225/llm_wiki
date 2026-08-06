@@ -1,4 +1,5 @@
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
+import type { SharedV4ProviderOptions } from '@ai-sdk/provider'
 import type { LanguageModel } from 'ai'
 
 export type LlmBackend = 'vllm' | 'ollama' | 'openai'
@@ -42,7 +43,9 @@ export function llmConfig(env: Env = process.env): LlmConfig {
  * 그대로 실어 보낸다. 그래서 이 객체가 곧 body의 추가 필드가 된다.
  * 키는 프로바이더 이름과 같아야 하므로 createOpenAICompatible의 name과 맞춰 둔다.
  */
-export function llmProviderOptions(config: LlmConfig = llmConfig()) {
+export function llmProviderOptions(
+  config: LlmConfig = llmConfig(),
+): SharedV4ProviderOptions | undefined {
   if (config.backend === 'vllm') {
     return { vllm: { chat_template_kwargs: { enable_thinking: false } } }
   }

@@ -10,11 +10,16 @@ export type SourceStatus = {
   searchedText?: boolean
   error?: string
 }
+/** 실제로 나간 SPARQL 한 건 — 테스트·디버깅용으로 UI까지 흘려보낸다. */
+export type SparqlQuery = { source: string; kind: 'label' | 'text'; term: string; sparql: string }
+
 export type GraphResult = {
   nodes: EntityNode[]
   edges: EntityEdge[]
   textHits: TextHit[]
   sources: SourceStatus[]
+  /** 이번 검색에서 각 소스로 나간 SPARQL 질의문 */
+  queries: SparqlQuery[]
 }
 
 type Binding = Record<string, { type: string; value: string }>
@@ -111,6 +116,23 @@ async function query(
   return body.results.bindings
 }
 
+/** 라벨 검색 SPARQL 본문. 실행과 화면 표시가 같은 문자열을 쓰도록 분리해 둔다. */
+export function entitySearchSparql(labels: string[], source: OntologySource, limit = 60): string {
+  const conds = labels.flatMap((t) => {
+    const lit = escapeLiteral(t)
+    return [`CONTAINS(?sl, "${lit}")`, `CONTAINS(?ol, "${lit}")`]
+  })
+  const pattern =
+    `?s ?p ?o . ` +
+    `?s <${source.labelPredicate}> ?sl . ` +
+    `?o <${source.labelPredicate}> ?ol .`
+  return `SELECT DISTINCT ?s ?sl ?p ?o ?ol WHERE {
+       ${anyGraph(pattern)}
+       FILTER(STRSTARTS(STR(?p), "${escapeLiteral(source.relationNamespace)}"))
+       FILTER(${conds.join(' || ')})
+     } LIMIT ${Math.max(1, Math.floor(limit))}`
+}
+
 /** 한 소스에서 라벨에 검색어가 포함된 개체와 그 관계 엣지를 가져온다. */
 export async function searchEntities(
   labels: string[],
@@ -120,23 +142,7 @@ export async function searchEntities(
   const terms = labels.filter(Boolean)
   if (terms.length === 0) return { nodes: [], edges: [] }
 
-  const conds = terms.flatMap((t) => {
-    const lit = escapeLiteral(t)
-    return [`CONTAINS(?sl, "${lit}")`, `CONTAINS(?ol, "${lit}")`]
-  })
-  const pattern =
-    `?s ?p ?o . ` +
-    `?s <${source.labelPredicate}> ?sl . ` +
-    `?o <${source.labelPredicate}> ?ol .`
-
-  const rows = await query(
-    source,
-    `SELECT DISTINCT ?s ?sl ?p ?o ?ol WHERE {
-       ${anyGraph(pattern)}
-       FILTER(STRSTARTS(STR(?p), "${escapeLiteral(source.relationNamespace)}"))
-       FILTER(${conds.join(' || ')})
-     } LIMIT ${Math.max(1, Math.floor(limit))}`,
-  )
+  const rows = await query(source, entitySearchSparql(terms, source, limit))
 
   const nodes = new Map<string, EntityNode>()
   const edges: EntityEdge[] = []
@@ -181,6 +187,14 @@ const SNIPPET = 300
  * 라벨은 두 번째 질의로 따로 붙인다. 스캔 질의 안에 OPTIONAL로 넣으면 ejkim이
  * 15초를 넘겨 통째로 실패했다. 대상 URI가 정해진 뒤의 조회는 주어 인덱스를 타서 싸다.
  */
+/** 리터럴 스캔 SPARQL 본문. 실행과 화면 표시가 같은 문자열을 쓰도록 분리해 둔다. */
+export function textSearchSparql(term: string, limit = 20): string {
+  return `SELECT DISTINCT ?s ?p (SUBSTR(STR(?o), 1, ${SNIPPET}) AS ?snip) WHERE {
+       ${anyGraph('?s ?p ?o')}
+       FILTER(isLiteral(?o) && CONTAINS(STR(?o), "${escapeLiteral(term)}"))
+     } LIMIT ${Math.max(1, Math.floor(limit))}`
+}
+
 export async function searchText(
   term: string,
   source: OntologySource,
@@ -188,14 +202,7 @@ export async function searchText(
 ): Promise<TextHit[]> {
   if (!term) return []
 
-  const rows = await query(
-    source,
-    `SELECT DISTINCT ?s ?p (SUBSTR(STR(?o), 1, ${SNIPPET}) AS ?snip) WHERE {
-       ${anyGraph('?s ?p ?o')}
-       FILTER(isLiteral(?o) && CONTAINS(STR(?o), "${escapeLiteral(term)}"))
-     } LIMIT ${Math.max(1, Math.floor(limit))}`,
-    TEXT_TIMEOUT,
-  )
+  const rows = await query(source, textSearchSparql(term, limit), TEXT_TIMEOUT)
   if (rows.length === 0) return []
 
   const labels = await labelsFor(
@@ -308,6 +315,12 @@ export async function searchGraphs(
       //
       // 라벨 검색은 싸니까 용어를 한꺼번에 병렬로 던진다.
       const byLabel = await Promise.all(terms.map((t) => searchEntities([t], s)))
+      const queries: SparqlQuery[] = terms.map((t) => ({
+        source: s.id,
+        kind: 'label',
+        term: t,
+        sparql: entitySearchSparql([t], s),
+      }))
 
       const missed = terms.filter((_, i) => byLabel[i].nodes.length === 0)
 
@@ -315,6 +328,7 @@ export async function searchGraphs(
       // 모두 느려진다(실측: 병렬로 돌렸더니 10분을 넘겼다). 순차로, 개수도 막는다.
       const textHits: TextHit[] = []
       for (const t of missed.slice(0, MAX_TEXT_TERMS)) {
+        queries.push({ source: s.id, kind: 'text', term: t, sparql: textSearchSparql(t) })
         textHits.push(...(await searchText(t, s)))
       }
 
@@ -323,6 +337,7 @@ export async function searchGraphs(
         edges: byLabel.flatMap((b) => b.edges),
         textHits,
         searchedText: missed.length > 0,
+        queries,
       }
     }),
   )
@@ -331,6 +346,7 @@ export async function searchGraphs(
   const edges: EntityEdge[] = []
   const textHits: TextHit[] = []
   const status: SourceStatus[] = []
+  const queries: SparqlQuery[] = []
 
   const seenNode = new Set<string>()
   const seenEdge = new Set<string>()
@@ -352,6 +368,7 @@ export async function searchGraphs(
         edges.push(e)
       }
       textHits.push(...r.value.textHits)
+      queries.push(...r.value.queries)
       status.push({ id: s.id, name: s.name, ok: true, searchedText: r.value.searchedText })
     } else {
       const error = String(r.reason?.message ?? r.reason)
@@ -361,5 +378,5 @@ export async function searchGraphs(
     }
   })
 
-  return { nodes, edges, textHits, sources: status }
+  return { nodes, edges, textHits, sources: status, queries }
 }
