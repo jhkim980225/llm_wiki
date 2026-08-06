@@ -77,10 +77,13 @@ export function GraphView() {
       .catch(() => setError(true))
   }, [])
 
-  const pos = useMemo<Record<string, XY>>(
-    () => (data ? layoutGraph(data.nodes, data.edges) : {}),
-    [data],
-  )
+  const pos = useMemo<Record<string, XY>>(() => {
+    if (!data) return {}
+    // 배치 면적을 노드 수에 비례시켜 노드 간격을 일정하게 — 고정 면적이면
+    // 문서 몇 개짜리 그래프가 황량하게 퍼진다
+    const size = Math.max(500, Math.sqrt(data.nodes.length) * 150)
+    return layoutGraph(data.nodes, data.edges, { width: size, height: size })
+  }, [data])
 
   /** 노드 전체가 화면에 들어오는 transform. */
   const fit = () => {
