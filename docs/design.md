@@ -125,6 +125,20 @@ chevron으로 펼침 표시. 개수는 tabular-nums 우측 정렬. 더보기 버
 출처' compact summary — *후속 과제*. 그래프 미리보기는 단색 선 + 작은 노드,
 핵심 노드만 accent. 무지개 노드 금지.
 
+### 그래프 뷰 (/graph)
+시안: `docs/mockups/graph-view-mockup.html` (2026-08-06). 캔버스 + 우측 인스펙터(300px,
+`--tree-bg`, 좌측 1px `--line`) 2단. 캔버스는 `--main-bg` 평면 — 장식·글로우·입자 금지.
+
+- 에지: `rgba(255,255,255,.13)` 1px. 선택 노드 인접 에지만 `.28`
+- 노드: 원형 `#24282D` + 1px 테두리, 라인 아이콘. 크기는 degree로만 차등(13~22px)
+- 유형 구분은 **아이콘 색만**: concept 회색 · entity 저채도 파랑(`#7C9CC4`) ·
+  synthesis 저채도 보라(`#A79BC8`). 노드마다 밝은 색 금지
+- 선택 = 1.5px accent 테두리만. 글로우·후광 금지
+- 라벨 11px `--text-dim`, 노드 아래 중앙
+- 좌상단 범위 라벨 + 문서/연결 수, 좌하단 줌 컨트롤(`--panel` 툴바), 인스펙터 하단
+  '문서 열기' outline accent 버튼
+- 실데이터가 수만 노드라 화면은 연결 상위 N(기본 200)만 그린다
+
 ## 이 코드베이스의 구현 노트
 
 - Tailwind 미사용 — 순수 CSS + CSS 변수로 위 토큰을 구현한다 (스펙의 "CSS variable
@@ -132,9 +146,10 @@ chevron으로 펼침 표시. 개수는 tabular-nums 우측 정렬. 더보기 버
 - Pretendard는 npm `pretendard` dynamic-subset CSS로 자체 서빙 (사내망 오프라인 대응)
 - JetBrains Mono는 `next/font/google` (빌드 시 다운로드, 런타임 자체 서빙)
 - 테마 토글 제거 — 다크 단일. `data-theme` 분기 삭제
-- Ctrl+Shift+G(그래프 탐색) 단축키는 그래프 뷰가 없으므로 넣지 않는다
+- 그래프 뷰는 `/graph` 라우트. 전용 단축키는 아직 없다
 
 ## 변경 이력
 
 - 2026-08-04 v1 — 최초 제정 (다크 단일 테마, Pretendard, lucide, 토큰 체계)
 - 2026-08-04 v1.1 — 드래그 드롭 강조는 폴더 행(drop-into)만. 트리 영역 전체 테두리 강조 제거 (기능은 유지)
+- 2026-08-06 v1.2 — 그래프 뷰(/graph) 기준 추가. '도입하지 않음' 결정을 뒤집고 옵시디언식 연결 그래프 도입 (시안 docs/mockups/graph-view-mockup.html)

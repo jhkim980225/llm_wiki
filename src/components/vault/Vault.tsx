@@ -10,6 +10,7 @@ import {
   Sparkles,
   Import,
   Trash2,
+  Waypoints,
 } from 'lucide-react'
 import { SidebarItem } from '@/components/ui'
 import { FileTree } from './FileTree'
@@ -65,6 +66,12 @@ export function Vault({ children }: { children: ReactNode }) {
           icon={<FileText size={IC} aria-hidden />}
           label="문서"
           onClick={() => setCollapsed((c) => !c)}
+        />
+        <SidebarItem
+          icon={<Waypoints size={IC} aria-hidden />}
+          label="그래프"
+          href="/graph"
+          on={pathname === '/graph'}
         />
         <SidebarItem icon={<Sparkles size={IC} aria-hidden />} label="AI 작성" href="/ask" on={pathname === '/ask'} />
         <SidebarItem
