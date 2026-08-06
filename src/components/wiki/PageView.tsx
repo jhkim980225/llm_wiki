@@ -17,6 +17,7 @@ export type PageData = {
   pageType: string
   aliases: string[]
   version: number
+  status?: string
   updatedAt: string
   lastEditSource: string
   outLinks: string[]

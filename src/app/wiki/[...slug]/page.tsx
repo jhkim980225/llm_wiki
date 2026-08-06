@@ -119,7 +119,7 @@ export default function WikiPage({ params }: { params: Promise<{ slug: string[] 
         </span>
       </div>
 
-      <div className="doc" style={{ position: 'relative' }}>
+      <div className={`doc${editing && page ? ' editing' : ''}`} style={{ position: 'relative' }}>
         {missing && (
           <div className="doc-inner">
             <h1 style={{ fontSize: '1.6rem' }}>
@@ -150,21 +150,20 @@ export default function WikiPage({ params }: { params: Promise<{ slug: string[] 
 
         {page &&
           (editing ? (
-            <div className="doc-inner">
-              <PageEditor
-                page={page}
-                onCancel={() => setEditing(false)}
-                onSaved={async () => {
-                  setEditing(false)
-                  await load()
-                }}
-              />
-            </div>
+            <PageEditor
+              page={page}
+              onCancel={() => setEditing(false)}
+              onShowRevisions={() => setShowRevisions(true)}
+              onSaved={async () => {
+                setEditing(false)
+                await load()
+              }}
+            />
           ) : (
             <PageView page={page} onEdit={() => setEditing(true)} />
           ))}
 
-        {page && (
+        {page && !editing && (
           <div className="statusbar">
             <span>백링크 {page.backlinks.length}</span>
             <span>링크 {page.outLinks.length}</span>
