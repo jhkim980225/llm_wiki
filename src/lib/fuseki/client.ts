@@ -10,8 +10,13 @@ export type SourceStatus = {
   searchedText?: boolean
   error?: string
 }
-/** 실제로 나간 SPARQL 한 건 — 테스트·디버깅용으로 UI까지 흘려보낸다. */
-export type SparqlQuery = { source: string; kind: 'label' | 'text'; term: string; sparql: string }
+/** 실제로 나간 질의 한 건 — 테스트·디버깅용으로 UI까지 흘려보낸다. api는 전용 RAG API 호출. */
+export type SparqlQuery = {
+  source: string
+  kind: 'label' | 'text' | 'api'
+  term: string
+  sparql: string
+}
 
 export type GraphResult = {
   nodes: EntityNode[]

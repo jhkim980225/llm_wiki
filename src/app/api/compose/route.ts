@@ -40,7 +40,7 @@ export async function POST(req: Request) {
         const terms = await extractTerms(ask)
         send({ stage: 'terms', terms })
 
-        const found = await retrieve(terms)
+        const found = await retrieve(ask, terms)
         send({ stage: 'graph', graph: found.graph, evidence: found.evidence, wiki: found.wiki })
 
         let text = ''

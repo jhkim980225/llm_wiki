@@ -409,7 +409,9 @@ function ContextPanel({
                 {graph.queries.map((q, i) => (
                   <div key={i} style={{ margin: '8px 0' }}>
                     <span className="meta">
-                      {q.source} · {q.kind === 'text' ? '리터럴 스캔' : '라벨 검색'} · “{q.term}”
+                      {q.source} ·{' '}
+                      {q.kind === 'text' ? '리터럴 스캔' : q.kind === 'api' ? 'RAG API' : '라벨 검색'}{' '}
+                      · “{q.term}”
                     </span>
                     <pre
                       className="sparql"
