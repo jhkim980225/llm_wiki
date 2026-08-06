@@ -1,5 +1,14 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
-import { escapeLiteral, searchEntities, searchGraphs, searchText, fusekiHealth, resetBreaker } from './client'
+import {
+  escapeLiteral,
+  searchEntities,
+  searchGraphs,
+  searchText,
+  fusekiHealth,
+  resetBreaker,
+  rankByTermMatches,
+  type EntityNode,
+} from './client'
 import { RDFS_LABEL, type OntologySource } from '@/lib/ontology/source'
 
 afterEach(() => {
@@ -47,6 +56,22 @@ describe('escapeLiteral', () => {
     const escaped = escapeLiteral(evil)
     // 리터럴을 조기 종료시킬 수 있는 것은 이스케이프되지 않은 따옴표뿐이다.
     expect(escaped.match(/(?<!\\)"/g)).toBeNull()
+  })
+})
+
+describe('rankByTermMatches', () => {
+  const n = (uri: string): EntityNode => ({ uri, label: uri, source: 's' })
+
+  it('여러 용어에 걸린 개체가 앞에 온다', () => {
+    const 정아라 = [n('a'), n('b'), n('일정-0615')]
+    const 날짜 = [n('일정-0615'), n('일정-0618')]
+    expect(rankByTermMatches([정아라, 날짜]).map((x) => x.uri)).toEqual([
+      '일정-0615', 'a', 'b', '일정-0618',
+    ])
+  })
+
+  it('중복은 한 번만, 매치 수 같으면 원래 순서', () => {
+    expect(rankByTermMatches([[n('x')], [n('y')]]).map((v) => v.uri)).toEqual(['x', 'y'])
   })
 })
 

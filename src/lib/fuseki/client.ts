@@ -290,6 +290,22 @@ export async function fusekiHealth(source: OntologySource): Promise<Health> {
 }
 
 /**
+ * 용어별 검색 결과를 합치며 **여러 용어에 걸린 개체를 앞에** 세운다.
+ * '정아라'와 '2026-06'에 둘 다 걸린 개체(6월 업무 일정)가 이름만 걸린 개체보다
+ * 근거로 먼저 뽑혀야 한다 — 근거 선정이 배열 앞에서 자르기 때문이다.
+ */
+export function rankByTermMatches(byTerm: EntityNode[][]): EntityNode[] {
+  const counts = new Map<string, number>()
+  for (const nodes of byTerm)
+    for (const n of nodes) counts.set(n.uri, (counts.get(n.uri) ?? 0) + 1)
+
+  const seen = new Set<string>()
+  const uniq = byTerm.flat().filter((n) => !seen.has(n.uri) && seen.add(n.uri))
+  // 안정 정렬 — 매치 수 같으면 원래 순서 유지
+  return uniq.sort((a, b) => (counts.get(b.uri) ?? 0) - (counts.get(a.uri) ?? 0))
+}
+
+/**
  * 물려 있는 그래프 전부에 동시에 묻고 결과를 합친다.
  *
  * 한 소스가 죽어도 나머지 답은 돌려준다 — 어느 소스가 실패했는지는 sources에 남겨
@@ -333,7 +349,7 @@ export async function searchGraphs(
       }
 
       return {
-        nodes: byLabel.flatMap((b) => b.nodes),
+        nodes: rankByTermMatches(byLabel.map((b) => b.nodes)),
         edges: byLabel.flatMap((b) => b.edges),
         textHits,
         searchedText: missed.length > 0,
