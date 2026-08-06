@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { savePage, VersionConflictError } from '@/lib/pages/save'
 import { embedPageSafe } from '@/lib/pages/embedding'
-import { normalizeSlug } from '@/lib/wiki/slug'
+import { parseOutLinks } from '@/lib/wiki/links'
 
 /** [...slug] 없이 슬래시 포함 slug를 다루기 위해 경로 조각은 URL 인코딩된 채로 온다. */
 const decode = (s: string) => decodeURIComponent(s)
@@ -12,8 +12,9 @@ export async function GET(_: Request, { params }: { params: Promise<{ slug: stri
   const page = await db.page.findFirst({ where: { slug, deletedAt: null } })
   if (!page) return NextResponse.json({ error: 'not found' }, { status: 404 })
 
-  // 과거 저장분엔 [[문서 제목]] 그대로의 outLink가 남아 있을 수 있어 정규화해 비교한다.
-  const outLinks = [...new Set(page.outLinks.map(normalizeSlug))]
+  // 저장된 outLinks 컬럼 대신 본문에서 실시간으로 다시 뽑는다 — 링크 문법이
+  // 확장(대괄호 표시명 등)될 때 과거 저장분도 재저장 없이 정확히 판정되게.
+  const outLinks = parseOutLinks(page.content)
 
   // 백링크와 죽은 링크 조회는 서로 독립이라 함께 던진다.
   const [backlinks, existing] = await Promise.all([
