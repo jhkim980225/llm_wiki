@@ -123,7 +123,7 @@ spec:
         - name: migrate
           # 앱 이미지의 node_modules는 Next standalone이 추려낸 것이라 Prisma CLI의
           # 전이 의존성이 없다. 마이그레이션은 CLI를 갖춘 전용 이미지로 돌린다.
-          image: wiki-graph-migrate:0.6.0
+          image: wiki-graph-migrate:0.7.0
           imagePullPolicy: Never
           envFrom:
             - configMapRef: { name: wiki-graph-env }
