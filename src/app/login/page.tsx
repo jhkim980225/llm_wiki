@@ -2,89 +2,263 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { Building2, ChevronDown, Eye, EyeOff, ShieldCheck, Waypoints } from 'lucide-react'
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+/** 배경 장식 — 문서 노드 그래프 패턴. 아주 낮은 투명도, 왼쪽 하단 고정. */
+function GraphPattern() {
+  const nodes: [number, number][] = [
+    [40, 300], [130, 240], [90, 150], [210, 180], [180, 70], [300, 120], [280, 260], [380, 200],
+  ]
+  const edges: [number, number][] = [
+    [0, 1], [1, 2], [1, 3], [2, 4], [3, 4], [3, 5], [3, 6], [5, 7], [6, 7],
+  ]
+  return (
+    <svg className="login-pattern" width="420" height="340" aria-hidden>
+      {edges.map(([a, b], i) => (
+        <line
+          key={i}
+          x1={nodes[a][0]} y1={nodes[a][1]} x2={nodes[b][0]} y2={nodes[b][1]}
+          stroke="currentColor" strokeWidth="1"
+        />
+      ))}
+      {nodes.map(([x, y], i) => (
+        <circle key={i} cx={x} cy={y} r={i === 3 ? 7 : 4} fill="currentColor" />
+      ))}
+    </svg>
+  )
+}
+
+type Mode = 'login' | 'register'
 
 export default function LoginPage() {
-  const [pw, setPw] = useState('')
-  const [err, setErr] = useState('')
+  const [mode, setMode] = useState<Mode>('login')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [name, setName] = useState('')
+  const [showPw, setShowPw] = useState(false)
+  const [remember, setRemember] = useState(true)
   const [busy, setBusy] = useState(false)
+  const [fieldErr, setFieldErr] = useState<{ email?: string; password?: string }>({})
+  const [topErr, setTopErr] = useState('')
   const router = useRouter()
 
-  async function submit(e: React.FormEvent) {
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (busy) return
+
+    const errs: typeof fieldErr = {}
+    if (!EMAIL_RE.test(email.trim())) errs.email = '이메일 형식이 올바르지 않습니다.'
+    if (!password) errs.password = '비밀번호를 입력하세요.'
+    if (mode === 'register' && password.length > 0 && password.length < 8)
+      errs.password = '비밀번호는 8자 이상이어야 합니다.'
+    setFieldErr(errs)
+    setTopErr('')
+    if (Object.keys(errs).length > 0) return
+
     setBusy(true)
-    setErr('')
-    const res = await fetch('/api/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ password: pw }),
-    })
-    setBusy(false)
-    if (res.ok) router.replace('/')
-    else setErr('비밀번호가 올바르지 않습니다.')
+    try {
+      const res = await fetch(mode === 'login' ? '/api/login' : '/api/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(
+          mode === 'login' ? { email, password, remember } : { email, password, name },
+        ),
+      })
+      if (res.ok) {
+        router.replace('/')
+        return
+      }
+      const body = await res.json().catch(() => ({}))
+      setTopErr(
+        res.status === 401
+          ? '이메일 또는 비밀번호가 올바르지 않습니다.'
+          : (body.error ?? `요청에 실패했습니다 (HTTP ${res.status})`),
+      )
+    } catch {
+      setTopErr('서버에 연결할 수 없습니다.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const switchMode = (m: Mode) => {
+    setMode(m)
+    setTopErr('')
+    setFieldErr({})
   }
 
   return (
-    <main
-      style={{
-        minHeight: '100vh',
-        display: 'grid',
-        placeItems: 'center',
-        background: '#0f1115',
-        color: '#e5e7eb',
-        fontFamily: 'Pretendard Variable, Pretendard, system-ui, sans-serif',
-      }}
-    >
-      <form
-        onSubmit={submit}
-        style={{
-          width: 320,
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 12,
-          padding: 28,
-          border: '1px solid #262a33',
-          borderRadius: 12,
-          background: '#151820',
-        }}
-      >
-        <h1 style={{ fontSize: 18, margin: 0, fontWeight: 600 }}>주식회사 성진</h1>
-        <p style={{ margin: '0 0 4px', fontSize: 13, color: '#9ca3af' }}>
-          접근하려면 비밀번호를 입력하세요.
-        </p>
-        <input
-          type="password"
-          value={pw}
-          onChange={(e) => setPw(e.target.value)}
-          autoFocus
-          placeholder="비밀번호"
-          style={{
-            padding: '10px 12px',
-            borderRadius: 8,
-            border: '1px solid #2b303b',
-            background: '#0f1115',
-            color: '#e5e7eb',
-            fontSize: 14,
-          }}
-        />
-        {err && <span style={{ color: '#f87171', fontSize: 13 }}>{err}</span>}
-        <button
-          type="submit"
-          disabled={busy || !pw}
-          style={{
-            padding: '10px 12px',
-            borderRadius: 8,
-            border: 'none',
-            background: '#2DD4BF',
-            color: '#04201c',
-            fontWeight: 600,
-            fontSize: 14,
-            cursor: busy || !pw ? 'default' : 'pointer',
-            opacity: busy || !pw ? 0.6 : 1,
-          }}
-        >
-          {busy ? '확인 중…' : '입장'}
-        </button>
-      </form>
+    <main className="login">
+      <div className="login-body">
+        {/* 왼쪽 — 브랜드 안내 */}
+        <section className="login-brand">
+          <GraphPattern />
+          <div className="logo">
+            <span className="mark">
+              <Waypoints size={15} aria-hidden />
+            </span>
+            주식회사 성진
+          </div>
+
+          <div className="pitch">
+            <h1>
+              문서와 그래프를 연결해
+              <br />
+              지식을 관리하세요
+            </h1>
+            <p className="lead">
+              신뢰할 수 있는 문서와 데이터를 연결하고, 구조화된 지식으로 만들어
+              <br />팀의 생산성을 높여줍니다.
+            </p>
+
+            <div className="feats">
+              <div className="feat">
+                <Waypoints size={18} aria-hidden />
+                <div>
+                  <strong>연결된 지식</strong>
+                  <p>문서, 데이터, 개념을 그래프로 연결해 숨겨진 관계와 인사이트를 발견하세요.</p>
+                </div>
+              </div>
+              <div className="feat">
+                <ShieldCheck size={18} aria-hidden />
+                <div>
+                  <strong>안전한 협업</strong>
+                  <p>권한 기반 보호와 감사 로그를 통해 안전하고 효율적인 협업을 지원합니다.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* 오른쪽 — 로그인 카드 */}
+        <section className="login-side">
+          <form className="login-card" onSubmit={submit} noValidate>
+            <div className="ws" role="note" aria-label="워크스페이스">
+              <Building2 size={14} aria-hidden />
+              온톨로지 프로젝트
+              <ChevronDown size={13} aria-hidden />
+            </div>
+
+            <h2>{mode === 'login' ? '로그인' : '회원가입'}</h2>
+            <p className="sub">
+              {mode === 'login'
+                ? '주식회사 성진 워크스페이스에 접속하세요.'
+                : '계정을 만들고 바로 시작하세요.'}
+            </p>
+
+            {/* 오류가 나도 레이아웃이 안 밀리게 자리를 항상 잡아둔다 */}
+            <p className="top-err" role="alert">
+              {topErr}
+            </p>
+
+            {mode === 'register' && (
+              <label className="field">
+                이름
+                <input
+                  type="text"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="이름을 입력하세요"
+                  autoComplete="name"
+                />
+                <span className="err" />
+              </label>
+            )}
+
+            <label className="field">
+              이메일
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="이메일 주소를 입력하세요"
+                autoComplete="email"
+                autoFocus
+                aria-invalid={Boolean(fieldErr.email)}
+              />
+              <span className="err">{fieldErr.email}</span>
+            </label>
+
+            <label className="field">
+              비밀번호
+              <span className="pw-wrap">
+                <input
+                  type={showPw ? 'text' : 'password'}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="비밀번호를 입력하세요"
+                  autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
+                  aria-invalid={Boolean(fieldErr.password)}
+                />
+                <button
+                  type="button"
+                  className="pw-toggle"
+                  aria-label={showPw ? '비밀번호 숨기기' : '비밀번호 표시'}
+                  onClick={() => setShowPw((v) => !v)}
+                >
+                  {showPw ? <EyeOff size={15} /> : <Eye size={15} />}
+                </button>
+              </span>
+              <span className="err">{fieldErr.password}</span>
+            </label>
+
+            {mode === 'login' && (
+              <div className="row">
+                <label className="check">
+                  <input
+                    type="checkbox"
+                    checked={remember}
+                    onChange={(e) => setRemember(e.target.checked)}
+                  />
+                  로그인 상태 유지
+                </label>
+                <button
+                  type="button"
+                  className="link"
+                  onClick={() => setTopErr('비밀번호 재설정은 관리자에게 문의하세요.')}
+                >
+                  비밀번호를 잊으셨나요?
+                </button>
+              </div>
+            )}
+
+            <button className="submit" type="submit" disabled={busy}>
+              {busy
+                ? mode === 'login'
+                  ? '로그인 중...'
+                  : '가입 중...'
+                : mode === 'login'
+                  ? '로그인'
+                  : '회원가입'}
+            </button>
+
+            <p className="swap">
+              {mode === 'login' ? (
+                <>
+                  계정이 없나요?{' '}
+                  <button type="button" className="link" onClick={() => switchMode('register')}>
+                    회원가입
+                  </button>
+                </>
+              ) : (
+                <>
+                  이미 계정이 있나요?{' '}
+                  <button type="button" className="link" onClick={() => switchMode('login')}>
+                    로그인
+                  </button>
+                </>
+              )}
+            </p>
+          </form>
+        </section>
+      </div>
+
+      <footer className="login-foot">
+        <span>© 2026 주식회사 성진. All rights reserved.</span>
+        <span>보안 · 개인정보 처리방침 · 이용약관</span>
+      </footer>
     </main>
   )
 }

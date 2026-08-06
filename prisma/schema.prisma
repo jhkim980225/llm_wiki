@@ -7,6 +7,15 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  name         String   @default("")
+  // scrypt "salt:hash" (hex). 해싱·검증은 lib/auth.ts
+  passwordHash String
+  createdAt    DateTime @default(now())
+}
+
 model Page {
   id             String    @id @default(uuid())
   slug           String    @unique

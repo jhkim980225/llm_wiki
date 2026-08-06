@@ -52,6 +52,9 @@ export function Vault({ children }: { children: ReactNode }) {
     router.push(href)
   }
 
+  // 로그인 화면은 셸(레일·트리) 밖에서 전체 화면으로 그린다. (훅 호출 뒤에 분기해야 안전)
+  if (pathname === '/login') return <>{children}</>
+
   return (
     <div className={`vault${collapsed ? ' collapsed' : ''}`} onClick={intercept}>
       <nav className="rail" aria-label="글로벌 내비게이션">

@@ -2127,3 +2127,349 @@ a.card:hover {
   font-size: 13px;
   text-align: center;
 }
+
+/* ── 로그인 화면 (/login) — 셸 밖 전체 화면 ─────────────────────── */
+
+.login {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background: var(--bg);
+}
+
+.login-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+}
+
+/* 왼쪽 브랜드 영역 (45%) */
+.login-brand {
+  position: relative;
+  width: 45%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  padding: 40px 56px;
+  overflow: hidden;
+}
+
+.login-pattern {
+  position: absolute;
+  left: -30px;
+  bottom: -20px;
+  color: var(--text);
+  opacity: 0.045;
+  pointer-events: none;
+}
+
+.login-brand .logo {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: var(--text);
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.login-brand .logo .mark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  background: var(--sel);
+  color: var(--accent);
+}
+
+.login-brand .pitch {
+  margin: auto 0;
+  max-width: 480px;
+}
+
+.login-brand h1 {
+  margin: 0 0 18px;
+  font-size: 44px;
+  font-weight: 650;
+  line-height: 1.3;
+  letter-spacing: -0.025em;
+}
+
+.login-brand .lead {
+  margin: 0 0 44px;
+  color: var(--text-dim);
+  font-size: 16px;
+  line-height: 1.7;
+}
+
+.login-brand .feats {
+  display: flex;
+  flex-direction: column;
+  gap: 26px;
+}
+
+.login-brand .feat {
+  display: flex;
+  gap: 14px;
+}
+
+.login-brand .feat > svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: var(--accent);
+}
+
+.login-brand .feat strong {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--text);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.login-brand .feat p {
+  margin: 0;
+  color: var(--text-dim);
+  font-size: 14px;
+  line-height: 1.6;
+  max-width: 360px;
+}
+
+/* 오른쪽 로그인 영역 (55%) */
+.login-side {
+  width: 55%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px;
+}
+
+.login-card {
+  width: 540px;
+  max-width: 100%;
+  padding: 52px;
+  background: var(--tree-bg);
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  display: flex;
+  flex-direction: column;
+}
+
+.login-card .ws {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  align-self: flex-start;
+  height: 32px;
+  padding: 0 11px;
+  margin-bottom: 26px;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  background: var(--panel);
+  color: var(--text-body);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.login-card .ws svg {
+  color: var(--text-faint);
+}
+
+.login-card h2 {
+  margin: 0 0 6px;
+  font-size: 24px;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+}
+
+.login-card .sub {
+  margin: 0;
+  color: var(--text-dim);
+  font-size: 14px;
+}
+
+/* 오류 자리 — 항상 잡아둬서 레이아웃이 안 밀린다 */
+.login-card .top-err {
+  min-height: 20px;
+  margin: 14px 0 6px;
+  color: var(--danger);
+  font-size: 13px;
+}
+
+.login-card .field {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  color: var(--text-body);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.login-card .field input {
+  height: 52px;
+  padding: 0 14px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-lg);
+  background: var(--bg);
+  color: var(--text);
+  font-size: 14px;
+  transition: border-color var(--fast);
+}
+
+.login-card .field input::placeholder {
+  color: var(--text-faint);
+}
+
+.login-card .field input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.login-card .field input[aria-invalid='true'] {
+  border-color: var(--danger);
+}
+
+.login-card .field .err {
+  min-height: 17px;
+  color: var(--danger);
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.login-card .pw-wrap {
+  position: relative;
+  display: flex;
+}
+
+.login-card .pw-wrap input {
+  flex: 1;
+  padding-right: 44px;
+}
+
+.login-card .pw-toggle {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: var(--r);
+  background: none;
+  color: var(--text-faint);
+  cursor: pointer;
+}
+
+.login-card .pw-toggle:hover {
+  color: var(--text-body);
+  background: var(--hover);
+}
+
+.login-card .row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 2px 0 22px;
+}
+
+.login-card .check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-dim);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.login-card .check input {
+  width: 15px;
+  height: 15px;
+  accent-color: var(--accent);
+}
+
+.login-card .link {
+  border: 0;
+  padding: 0;
+  background: none;
+  color: var(--accent);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.login-card .link:hover {
+  color: var(--accent-hover);
+  text-decoration: underline;
+}
+
+.login-card .submit {
+  height: 52px;
+  border: 0;
+  border-radius: var(--r-lg);
+  background: var(--accent);
+  color: #06231f;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--fast);
+}
+
+.login-card .submit:hover {
+  background: var(--accent-hover);
+}
+
+.login-card .submit:disabled {
+  opacity: 0.65;
+  cursor: default;
+}
+
+.login-card .swap {
+  margin: 20px 0 0;
+  color: var(--text-dim);
+  font-size: 13px;
+  text-align: center;
+}
+
+/* 푸터 */
+.login-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 52px;
+  padding: 0 32px;
+  border-top: 1px solid var(--line);
+  color: var(--text-faint);
+  font-size: 12px;
+}
+
+@media (max-width: 1024px) {
+  .login-brand {
+    width: 38%;
+    padding: 32px;
+  }
+  .login-brand h1 {
+    font-size: 32px;
+  }
+  .login-side {
+    width: 62%;
+  }
+}
+
+@media (max-width: 768px) {
+  .login-brand {
+    display: none;
+  }
+  .login-side {
+    width: 100%;
+    padding: 16px;
+  }
+  .login-card {
+    padding: 32px 24px;
+    border: 0;
+    background: none;
+  }
+}
