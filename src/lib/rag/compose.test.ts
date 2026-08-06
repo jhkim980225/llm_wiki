@@ -1,5 +1,22 @@
 import { describe, it, expect } from 'vitest'
-import { stripInlineSources, splitDoc, stripEmailRefs } from './compose'
+import { stripInlineSources, splitDoc, stripEmailRefs, interleaveBySource } from './compose'
+
+describe('interleaveBySource', () => {
+  it('한 소스가 앞을 독점해도 소스별로 번갈아 나온다', () => {
+    const items = [
+      ...['e1', 'e2', 'e3'].map((u) => ({ uri: u, source: 'ejkim' })),
+      ...['k1', 'k2'].map((u) => ({ uri: u, source: 'kakao' })),
+      { uri: 's1', source: 'seunghoon' },
+    ]
+    expect(interleaveBySource(items).map((i) => i.uri)).toEqual([
+      'e1', 'k1', 's1', 'e2', 'k2', 'e3',
+    ])
+  })
+
+  it('빈 배열은 빈 배열', () => {
+    expect(interleaveBySource([])).toEqual([])
+  })
+})
 
 describe('stripEmailRefs', () => {
   it('참고 절에서 이메일이 든 항목만 지운다', () => {

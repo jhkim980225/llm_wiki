@@ -221,11 +221,31 @@ function renderEvidence(
   return lines.join('\n')
 }
 
+/**
+ * 소스별로 번갈아 섞는다. 매치가 소스 순서대로 쌓여 있어서(ejkim 수십 건이 먼저),
+ * 그대로 앞에서 EVIDENCE_NODES개를 자르면 근거가 한 소스에 독점된다 —
+ * 실측: '정아라 6월 업무'에서 kakao 개체 57건이 매치되고도 근거 0건이었다.
+ */
+export function interleaveBySource<T extends { source: string }>(items: T[]): T[] {
+  const bySource = new Map<string, T[]>()
+  for (const it of items) {
+    const list = bySource.get(it.source)
+    if (list) list.push(it)
+    else bySource.set(it.source, [it])
+  }
+  const lists = [...bySource.values()]
+  const out: T[] = []
+  for (let i = 0; out.length < items.length; i++) {
+    for (const list of lists) if (list[i] !== undefined) out.push(list[i])
+  }
+  return out
+}
+
 /** 2·3단계 — 그래프 3소스와 **위키 문서**를 나란히 뒤지고 근거를 모은다. */
 export async function retrieve(terms: string[]): Promise<Retrieved> {
   // 위키 검색은 Postgres 한 방이라 그래프 왕복과 겹쳐 돌려도 공짜다.
   const [graph, wiki] = await Promise.all([searchGraphs(terms), searchWiki(terms)])
-  const targets = graph.nodes.length > 0 ? graph.nodes : graph.textHits
+  const targets = interleaveBySource(graph.nodes.length > 0 ? graph.nodes : graph.textHits)
   const evidence = targets.length > 0 ? await attributesFor(targets, EVIDENCE_NODES) : []
   const links = await resolveLinks([...evidence, ...graph.textHits])
   // 위키 히트는 slug를 이미 아니 그대로 링크에 얹는다.
