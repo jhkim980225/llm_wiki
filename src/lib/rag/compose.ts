@@ -18,8 +18,8 @@ import { db } from '@/lib/db'
  *   용어 추출 → 3소스 조회 → 근거 수집 → 작성
  */
 
-/** 근거로 넘길 개체 수. qwen3 컨텍스트가 32k라 본문 리터럴을 무제한 못 싣는다. */
-const EVIDENCE_NODES = 6
+/** 근거로 넘길 개체 수. 전체 길이는 EVIDENCE_CHARS가 따로 막는다. */
+const EVIDENCE_NODES = 10
 
 /** 개체 하나당 속성 값 길이 상한. 문서 전문이 통째로 들어오면 컨텍스트가 터진다. */
 const VALUE_CHARS = 1200
@@ -102,6 +102,23 @@ export type ComposeResult = {
   saved?: { slug: string; version: number }
 }
 
+/**
+ * "2026년 6월" 같은 시점 용어에 그래프 라벨 표기("2026-06") 변형을 더한다.
+ * 그래프의 일자 개체 라벨은 ISO식(2026-06-15-업무-일정)이라 한국어 표기로는
+ * 한 건도 안 걸린다 — 실측: '정아라 6월 업무'에서 일자별 업무 개체 전체 누락.
+ */
+export function expandDateTerms(terms: string[]): string[] {
+  const out = [...terms]
+  for (const t of terms) {
+    const m = t.match(/(\d{4})\s*년\s*(\d{1,2})\s*월/)
+    if (m) {
+      const variant = `${m[1]}-${m[2].padStart(2, '0')}`
+      if (!out.includes(variant)) out.push(variant)
+    }
+  }
+  return out
+}
+
 /** 1단계 — 요청에서 검색어를 뽑는다. */
 export async function extractTerms(request: string): Promise<string[]> {
   const { terms } = await generateJson({
@@ -116,7 +133,7 @@ export async function extractTerms(request: string): Promise<string[]> {
       '형식: {"terms": ["검색어1", "검색어2"]}',
     prompt: request,
   })
-  return terms
+  return expandDateTerms(terms)
 }
 
 /**

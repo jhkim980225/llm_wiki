@@ -1,5 +1,22 @@
 import { describe, it, expect } from 'vitest'
-import { stripInlineSources, splitDoc, stripEmailRefs, interleaveBySource } from './compose'
+import {
+  stripInlineSources,
+  splitDoc,
+  stripEmailRefs,
+  interleaveBySource,
+  expandDateTerms,
+} from './compose'
+
+describe('expandDateTerms', () => {
+  it('한국어 연월 표기에 ISO 변형을 더한다', () => {
+    expect(expandDateTerms(['정아라', '2026년 6월'])).toEqual(['정아라', '2026년 6월', '2026-06'])
+    expect(expandDateTerms(['2026년 11월'])).toEqual(['2026년 11월', '2026-11'])
+  })
+
+  it('날짜가 없으면 그대로', () => {
+    expect(expandDateTerms(['황금추출물'])).toEqual(['황금추출물'])
+  })
+})
 
 describe('interleaveBySource', () => {
   it('한 소스가 앞을 독점해도 소스별로 번갈아 나온다', () => {
