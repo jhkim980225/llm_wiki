@@ -20,7 +20,9 @@ export type PageData = {
   lastEditSource: string
   outLinks: string[]
   deadLinks: string[]
+  /** 상한(200)까지만 온다. 총수는 backlinkTotal. */
   backlinks: { slug: string; title: string }[]
+  backlinkTotal: number
 }
 
 const EDITOR: Record<string, string> = {
@@ -41,10 +43,11 @@ export function PageView({ page, onEdit }: { page: PageData; onEdit: () => void 
     else router.refresh()
   })
 
-  const existing = useMemo(
-    () => new Set(page.outLinks.filter((s) => !page.deadLinks.includes(s))),
-    [page.outLinks, page.deadLinks],
-  )
+  // includes()로 걸렀더니 적재 개체(링크 6천 개)에서 N×M 비교가 됐다 — Set으로.
+  const existing = useMemo(() => {
+    const dead = new Set(page.deadLinks)
+    return new Set(page.outLinks.filter((s) => !dead.has(s)))
+  }, [page.outLinks, page.deadLinks])
 
   // Delete 키로 휴지통 이동(확인 대화상자 경유). 검색창 등 입력 중에는 무시한다.
   useEffect(() => {
@@ -115,7 +118,7 @@ export function PageView({ page, onEdit }: { page: PageData; onEdit: () => void 
         <span>
           <span className="k">links</span>
           <span className="v">
-            나감 {page.outLinks.length} · 들어옴 {page.backlinks.length}
+            나감 {page.outLinks.length} · 들어옴 {page.backlinkTotal}
             {page.deadLinks.length > 0 && <> · <span className="badge-warn">끊김 {page.deadLinks.length}</span></>}
           </span>
         </span>
@@ -135,17 +138,22 @@ export function PageView({ page, onEdit }: { page: PageData; onEdit: () => void 
       <Markdown content={page.content} existingSlugs={existing} />
 
       <section className="backlinks" onClick={interceptLinks(router)}>
-        <h4>이 문서를 가리키는 문서 {page.backlinks.length}</h4>
+        <h4>이 문서를 가리키는 문서 {page.backlinkTotal}</h4>
         {page.backlinks.length === 0 ? (
           <p className="meta">없음</p>
         ) : (
-          <ul>
-            {page.backlinks.map((b) => (
-              <li key={b.slug}>
-                <a href={`/wiki/${b.slug}`}>{b.title}</a>
-              </li>
-            ))}
-          </ul>
+          <>
+            <ul>
+              {page.backlinks.map((b) => (
+                <li key={b.slug}>
+                  <a href={`/wiki/${b.slug}`}>{b.title}</a>
+                </li>
+              ))}
+            </ul>
+            {page.backlinkTotal > page.backlinks.length && (
+              <p className="meta">…외 {page.backlinkTotal - page.backlinks.length}개</p>
+            )}
+          </>
         )}
       </section>
     </div>

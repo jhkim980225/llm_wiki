@@ -27,6 +27,7 @@ type PageDetail = {
   outLinks: string[]
   deadLinks: string[]
   backlinks: { slug: string; title: string }[]
+  backlinkTotal: number
   updatedAt: string
   version: number
   lastEditSource: string
@@ -291,7 +292,7 @@ export function GraphView() {
                 나가는 링크<span className="v">{liveOut}</span>
               </div>
               <div className="stat">
-                백링크<span className="v">{detail.backlinks.length}</span>
+                백링크<span className="v">{detail.backlinkTotal}</span>
               </div>
             </div>
 

@@ -246,7 +246,7 @@ export default function WikiPage({ params }: { params: Promise<{ slug: string[] 
 
         {page && !editing && (
           <div className="statusbar">
-            <span>백링크 {page.backlinks.length}</span>
+            <span>백링크 {page.backlinkTotal}</span>
             <span>링크 {page.outLinks.length}</span>
           </div>
         )}
