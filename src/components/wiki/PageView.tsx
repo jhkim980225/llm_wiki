@@ -137,7 +137,10 @@ export function PageView({ page, onEdit }: { page: PageData; onEdit: () => void 
         )}
       </div>
       {page.summary && (
-        <p style={{ margin: '-16px 0 28px', color: 'var(--text-dim)', fontSize: 13.5 }}>{page.summary}</p>
+        <p style={{ margin: '-16px 0 28px', color: 'var(--text-dim)', fontSize: 13.5 }}>
+          {/* 요약은 평문 표시라 위키링크 문법이 그대로 노출된다(AI 작성 요약 실측) — 표시명만 남긴다 */}
+          {page.summary.replace(/\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g, (_, s, d) => d ?? s)}
+        </p>
       )}
 
       {/* 본문 링크는 dangerouslySetInnerHTML로 뿌려서 next/link가 될 수 없다.
