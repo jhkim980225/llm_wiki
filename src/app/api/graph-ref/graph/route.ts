@@ -29,6 +29,7 @@ export async function GET(req: Request) {
       ambiguousCount,
       nodes: ego.nodes,
       edges: ego.edges,
+      neighborCount: ego.neighborCount,
     })
   } catch (e) {
     return Response.json({ error: (e as Error).message }, { status: 400 })

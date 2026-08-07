@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { buildEgo, type Binding } from './graph'
+import { buildEgo, MAX_GRAPH_NEIGHBORS, type Binding } from './graph'
 import { RDFS_LABEL, type OntologySource } from '@/lib/ontology/source'
 
 const source: OntologySource = {
@@ -71,6 +71,45 @@ describe('buildEgo', () => {
     expect(r.nodes).toHaveLength(1)
   })
 
+  // 개체 하나에 이웃이 수백 개 달린다(실측 198). 그림만 자르고 본문용 neighbors는 남긴다.
+  it('그림은 상한까지만 그리고 이웃 총수는 따로 알린다', () => {
+    const rows = Array.from({ length: 40 }, (_, i) =>
+      row('urn:t:rel:knows', `urn:t:e:p${String(i).padStart(2, '0')}`, 'out', `사람${i}`),
+    )
+    const r = buildEgo(source, center, rows)
+
+    expect(r.neighbors).toHaveLength(40)
+    expect(r.neighborCount).toBe(40)
+    expect(r.nodes).toHaveLength(MAX_GRAPH_NEIGHBORS + 1) // 중심 포함
+    expect(r.edges).toHaveLength(MAX_GRAPH_NEIGHBORS)
+  })
+
+  // 앞에서부터 자르면 정렬 때문에 한 관계가 자리를 다 먹는다.
+  it('상한을 넘으면 관계 종류별로 돌아가며 뽑는다', () => {
+    const many = Array.from({ length: 20 }, (_, i) =>
+      row('urn:t:rel:usesAccount', `urn:t:e:a${String(i).padStart(2, '0')}`, 'out', `계정${i}`),
+    )
+    const r = buildEgo(source, center, [
+      ...many,
+      row('urn:t:rel:worksAt', 'urn:t:e:feda', 'out', '페다'),
+      row('urn:t:rel:manages', 'urn:t:e:lee', 'in', '이'),
+    ])
+
+    const rels = new Set(
+      r.nodes.slice(1).map((n) => r.neighbors.find((x) => x.uri === n.slug)!.rel),
+    )
+    expect(rels).toEqual(new Set(['usesAccount', 'worksAt', 'manages']))
+  })
+
+  it('이웃이 상한보다 적으면 전부 그린다', () => {
+    const r = buildEgo(source, center, [
+      row('urn:t:rel:worksAt', 'urn:t:e:feda', 'out', '페다'),
+      row('urn:t:rel:manages', 'urn:t:e:lee', 'in', '이'),
+    ])
+    expect(r.nodes).toHaveLength(3)
+    expect(r.neighborCount).toBe(2)
+  })
+
   // 문서 맨 위 타입 줄이 같은 말을 하고, 값이 원시 URI라 표에 두면 읽히지 않는다.
   it('rdf:type도 속성에 넣지 않는다', () => {
     const r = buildEgo(source, center, [
@@ -138,6 +177,7 @@ describe('buildEgo', () => {
       neighbors: [],
       nodes: [{ slug: 'urn:t:e:kim', title: '김', pageType: 'entity', degree: 0 }],
       edges: [],
+      neighborCount: 0,
     })
   })
 

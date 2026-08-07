@@ -13,6 +13,8 @@ type EgoData = {
   ambiguousCount: number
   nodes: GraphNode[]
   edges: GraphEdge[]
+  /** 이웃 총수. nodes보다 많으면 일부만 그린 것이다. */
+  neighborCount: number
 }
 
 /** slug의 각 경로 조각만 인코딩해 /wiki 경로를 만든다 (FileTree·GraphView와 같은 규칙). */
@@ -122,6 +124,7 @@ export function EntityGraph({ slug }: { slug: string }) {
   if (!data) return <div className="entity-graph empty">그래프를 불러오는 중…</div>
 
   const center = data.nodes[0]
+  const drawn = Math.max(0, data.nodes.length - 1)
   const sel = data.nodes.find((n) => n.slug === selected)
   // 이웃 문서 주소는 라벨로 만든다 — 적재본·승격본이 같은 규칙(entitySlug)을 쓰므로
   // 이미 있는 문서면 그대로 열리고, 없으면 문서 없음 화면이 받는다.
@@ -191,7 +194,10 @@ export function EntityGraph({ slug }: { slug: string }) {
             <Waypoints size={12} aria-hidden /> {data.name} · {data.type}
           </span>
           <span className="meta">
-            이웃 {Math.max(0, data.nodes.length - 1)} · 관계 {data.edges.length}
+            {drawn < data.neighborCount
+              ? `이웃 ${data.neighborCount}개 중 ${drawn}`
+              : `이웃 ${drawn}`}{' '}
+            · 관계 {data.edges.length}
           </span>
         </div>
 
