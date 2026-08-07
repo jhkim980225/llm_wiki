@@ -60,7 +60,9 @@ export default function FlowPage() {
       const folders = (await (await fetch('/api/folders')).json()).items as { id: string; name: string }[]
       const tpl = folders.find((f) => f.name === '템플릿')
       if (!tpl) return
-      const tree = await (await fetch(`/api/tree?parentId=${tpl.id}`)).json()
+      // tree API의 파라미터는 folderId다 — parentId로 불렀더니 루트 문서가
+      // 드롭다운에 나왔다(실측). 같은 이유로 빈 목록이면 직접 입력으로 남긴다.
+      const tree = await (await fetch(`/api/tree?folderId=${tpl.id}`)).json()
       setTemplates((tree.pages ?? []).map((p: TemplateDoc) => ({ slug: p.slug, title: p.title })))
     } catch {
       /* 후보 없이 직접 입력으로 동작 */
@@ -72,7 +74,7 @@ export default function FlowPage() {
     loadTemplates()
   }, [])
 
-  const create = async () => {
+  const create = async (runAfter = false) => {
     if (!form.title.trim() || !form.prompt.trim() || !form.templateSlug.trim()) {
       toast('제목·프롬프트·템플릿은 필수입니다.', 'error')
       return
@@ -85,13 +87,16 @@ export default function FlowPage() {
         targetFolderName: form.targetFolderName.trim() || undefined,
       }),
     })
-    if (res.ok) {
-      toast('FLOW를 등록했습니다. 캘린더에 반영됩니다.', 'success')
-      setForm({ title: '', prompt: '', templateSlug: '', targetFolderName: '', scheduleWeekday: 1, scheduleHour: 9 })
-      load()
-    } else {
+    if (!res.ok) {
       toast((await res.json()).error ?? '등록에 실패했습니다.', 'error')
+      return
     }
+    const flow = await res.json()
+    toast('FLOW를 등록했습니다. 캘린더에 반영됩니다.', 'success')
+    setForm({ title: '', prompt: '', templateSlug: '', targetFolderName: '', scheduleWeekday: 1, scheduleHour: 9 })
+    await load()
+    // 테스트용 즉시 실행 — 스케줄을 기다리지 않고 결과를 바로 확인한다.
+    if (runAfter && flow?.id) await runNow(flow.id)
   }
 
   const runNow = async (id: string) => {
@@ -204,7 +209,10 @@ export default function FlowPage() {
                 ))}
               </select>
               <span className="grow" />
-              <button className="primary" onClick={create}>
+              <button className="quiet" onClick={() => create(true)} disabled={busy !== null}>
+                <Play size={13} aria-hidden /> 등록 + 즉시 실행
+              </button>
+              <button className="primary" onClick={() => create()}>
                 <Plus size={14} aria-hidden /> 등록
               </button>
             </div>

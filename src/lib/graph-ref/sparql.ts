@@ -29,20 +29,23 @@ function assertUri(uri: string): string {
 
 /**
  * 한 URI의 1홉 이웃을 양방향으로. ?dir 은 "out"(uri가 주어) / "in"(uri가 목적어).
- * ?otherLabel 은 OPTIONAL — 라벨 없는 노드도 관계는 보여준다.
+ * ?otherLabel·?otherType 은 OPTIONAL — 라벨 없는 노드도 관계는 보여주고,
+ * 타입은 화면이 노이즈 개체(금액·계좌·날짜 노드)를 거르는 데 쓴다.
  */
 export function neighborQuery(source: OntologySource, uri: string): string {
   const u = assertUri(uri)
   const out = `<${u}> ?rel ?other . BIND("out" AS ?dir)`
   const inc = `?other ?rel <${u}> . BIND("in" AS ?dir)`
   const lbl = `?other <${source.labelPredicate}> ?otherLabel`
+  const typ = `?other a ?otherType`
 
-  return `SELECT DISTINCT ?rel ?other ?otherLabel ?dir WHERE {
+  return `SELECT DISTINCT ?rel ?other ?otherLabel ?otherType ?dir WHERE {
   { ${anyGraph(out, '?__go')} }
   UNION
   { ${anyGraph(inc, '?__gi')} }
   OPTIONAL { ${anyGraph(lbl, '?__gl')} }
-} LIMIT 200`
+  OPTIONAL { ${anyGraph(typ, '?__gt')} }
+} LIMIT 400`
 }
 
 /** 표시명이 정확히 일치하는 개체. 링크 후보를 URI로 되찾을 때 쓴다. */

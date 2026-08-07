@@ -182,6 +182,35 @@ describe('buildEgo', () => {
     })
   })
 
+  // 온톨로지가 금액·계좌·날짜를 개체 노드로 모델링해 둔 것들 — 이웃에서 뺀다
+  it('노이즈 타입 이웃을 거른다 (타입은 여러 행에 흩어져 온다)', () => {
+    const typed = (rel: string, uri: string, label: string, type: string): Binding[] => [
+      row(rel, uri, 'out', label),
+      { ...row(rel, uri, 'out', label), otherType: { type: 'uri', value: type } },
+    ]
+    const r = buildEgo(source, center, [
+      ...typed('urn:t:rel:hasAmount', 'urn:t:e:amt1', '31,000원 결제건', 'urn:t:c:MonetaryAmount'),
+      ...typed('urn:t:rel:worksAt', 'urn:t:e:feda', '페다', 'urn:t:c:Organization'),
+    ])
+    expect(r.neighbors.map((n) => n.uri)).toEqual(['urn:t:e:feda'])
+    expect(r.rels).toEqual([{ rel: 'worksAt', count: 1 }])
+  })
+
+  it('타입을 몰라도 숫자 덩어리 라벨은 거른다', () => {
+    const r = buildEgo(source, center, [
+      row('urn:t:rel:usesAccount', 'urn:t:e:acc', 'out', '국민은행 497801-01-293617'),
+      row('urn:t:rel:hasPhone', 'urn:t:e:ph', 'out', '010-8288-2107'),
+      row('urn:t:rel:hasPrice', 'urn:t:e:p1', 'out', '31,000원'),
+      row('urn:t:rel:onDate', 'urn:t:e:d1', 'out', '2026-06-22'),
+      row('urn:t:rel:worksAt', 'urn:t:e:feda', 'out', '페다'),
+      row('urn:t:rel:wrote', 'urn:t:e:doc', 'out', '[성진] 2023년 생산실적보고 자료 송부의 건'),
+    ])
+    expect(r.neighbors.map((n) => n.label)).toEqual([
+      '페다',
+      '[성진] 2023년 생산실적보고 자료 송부의 건',
+    ])
+  })
+
   // 관계 하나를 고르면 그 관계만 50개까지, 칩 목록(rels)은 전체 기준 유지
   it('rel 필터 — 그 관계만 그리고 rels·칩은 전체 기준', () => {
     const many = Array.from({ length: 60 }, (_, i) =>

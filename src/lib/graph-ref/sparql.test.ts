@@ -14,20 +14,22 @@ const src: OntologySource = {
 describe('neighborQuery', () => {
   const q = neighborQuery(src, 'urn:test:e/1')
 
-  it('양방향 + 라벨 OPTIONAL + LIMIT 200', () => {
-    expect(q).toMatch(/^SELECT DISTINCT \?rel \?other \?otherLabel \?dir WHERE \{/)
+  it('양방향 + 라벨·타입 OPTIONAL + LIMIT 400', () => {
+    expect(q).toMatch(/^SELECT DISTINCT \?rel \?other \?otherLabel \?otherType \?dir WHERE \{/)
     expect(q).toContain('<urn:test:e/1> ?rel ?other')
     expect(q).toContain('?other ?rel <urn:test:e/1>')
     expect(q).toContain('BIND("out" AS ?dir)')
     expect(q).toContain('BIND("in" AS ?dir)')
     expect(q).toContain(`OPTIONAL { { ?other <${RDFS_LABEL}> ?otherLabel }`)
-    expect(q.trimEnd().endsWith('LIMIT 200')).toBe(true)
+    expect(q).toContain('OPTIONAL { { ?other a ?otherType }')
+    expect(q.trimEnd().endsWith('LIMIT 400')).toBe(true)
   })
 
   it('기본 그래프와 named graph 양쪽을 UNION으로 잡는다', () => {
     expect(q).toContain('UNION { GRAPH ?__go {')
     expect(q).toContain('UNION { GRAPH ?__gi {')
     expect(q).toContain('UNION { GRAPH ?__gl {')
+    expect(q).toContain('UNION { GRAPH ?__gt {')
   })
 
   it('그래프 변수는 서로 달라야 한다 (같으면 라벨이 안 잡힌다)', () => {
@@ -190,7 +192,8 @@ describe('enforceLimit', () => {
   })
 
   it('우리가 만든 질의는 이미 상한이 걸려 있다', () => {
+    // neighborQuery는 타입 OPTIONAL로 행이 불어 400을 쓴다 — 같은 상한이면 무변형.
     const q = neighborQuery(src, 'urn:test:e/1')
-    expect(enforceLimit(q)).toBe(q)
+    expect(enforceLimit(q, 400)).toBe(q)
   })
 })
