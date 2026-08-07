@@ -9,7 +9,11 @@ const ok = (body: unknown) =>
 describe('askKakaoRag', () => {
   it('answer만 뽑아 온다', async () => {
     ok({ answer: '정아라님의 6월 업무는…', timing: { total: 41465 } })
-    expect(await askKakaoRag('질문')).toEqual({ ok: true, answer: '정아라님의 6월 업무는…' })
+    expect(await askKakaoRag('질문')).toEqual({
+      ok: true,
+      answer: '정아라님의 6월 업무는…',
+      entities: [],
+    })
   })
 
   it('HTTP 오류는 ok:false', async () => {

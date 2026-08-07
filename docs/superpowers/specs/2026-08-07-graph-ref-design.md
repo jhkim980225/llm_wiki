@@ -241,7 +241,19 @@ SQL로 직접 넣었고(`ON CONFLICT DO NOTHING`), 이후는 API를 쓴다. 관�
 | 2홉 이상 그래프 | 1홉으로 부족하다는 요구가 나오면 |
 | 역반영(위키 → Fuseki) | `docs/db-roles.md` §6 장기 과제 |
 
+## 자동 수집 (2026-08-08 붙음)
+
+소스 API가 `entities: [{name, type}]`를 준다(세 소스 배포 완료). `askSourceRag`가
+응답에서 걸러(`lib/graph-ref/entities.ts`) GraphRef에 fire-and-forget으로 쌓는다 —
+채팅·AI 작성·WBS 등 askSourceRag를 타는 모든 경로가 자동으로 수집한다.
+
+거르는 것: name·type 짝 미달, 2자 미만·60자 초과, 닫는 괄호·따옴표가 여는 쪽보다
+많은 문장 조각, "…라 한다" 계약서 정의부, slug가 안 만들어지는 이름, 중복.
+실측 근거: seunghoon 소스가 "라 한다)과 주식회사 성진" 같은 원문 조각을 보낸다.
+
+관측된 type 값: person · organization · businessNumber · product · material.
+화면 표시(아이콘·색)를 타입별로 가르는 것은 여전히 나중 일.
+
 ## 열린 항목
 
-- 저쪽 API의 `type` 값 목록 미정 — 받으면 화면 표시(아이콘·색)를 타입별로 가른다
 - `uri` 제공 여부 미정 — 오면 라벨 조회 단계를 건너뛴다. 안 와도 동작한다

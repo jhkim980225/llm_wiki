@@ -1,6 +1,9 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { askSourceRag, hasRagApi, ragUrl } from './source-rag'
 
+// entities 수집(fire-and-forget)이 테스트에서 실제 DB를 물지 않게 잘라 둔다.
+vi.mock('@/lib/graph-ref/store', () => ({ upsertRef: vi.fn(async () => ({})) }))
+
 afterEach(() => vi.unstubAllGlobals())
 
 const ok = (body: unknown) =>
@@ -25,9 +28,25 @@ describe('hasRagApi / ragUrl', () => {
 })
 
 describe('askSourceRag', () => {
-  it('answer만 뽑아 온다', async () => {
+  it('answer만 뽑아 온다 (entities 없는 응답 — 빈 배열)', async () => {
     ok({ answer: '정아라님의 6월 업무는…', timing: { total: 41465 } })
-    expect(await askSourceRag('ejkim', '질문')).toEqual({ ok: true, answer: '정아라님의 6월 업무는…' })
+    expect(await askSourceRag('ejkim', '질문')).toEqual({
+      ok: true,
+      answer: '정아라님의 6월 업무는…',
+      entities: [],
+    })
+  })
+
+  it('entities를 걸러서 담는다 — 문장 조각은 버린다', async () => {
+    ok({
+      answer: '성진의 발주 목록은…',
+      entities: [
+        { name: '주식회사 성진', type: 'organization' },
+        { name: '라 한다)과 주식회사 성진', type: 'organization' },
+      ],
+    })
+    const r = await askSourceRag('seunghoon', '질문')
+    expect(r.entities).toEqual([{ name: '주식회사 성진', type: 'organization' }])
   })
 
   it('요청 body는 { question }', async () => {
