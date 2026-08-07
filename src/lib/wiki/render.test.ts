@@ -42,4 +42,21 @@ describe('wikiLinksToHtml', () => {
   it('링크가 없으면 원문 그대로', () => {
     expect(wikiLinksToHtml('평범한 문장', existing)).toBe('평범한 문장')
   })
+
+  it('그래프 개체 링크에 data-etype을 단다', () => {
+    const html = wikiLinksToHtml(
+      '[[e/acme|에이크미]]와 [[주식회사 성진 구성원]]',
+      existing,
+      new Map([['e/acme', 'organization']]),
+    )
+    expect(html).toContain('data-etype="organization"')
+    // 지정 안 된 링크에는 안 붙는다
+    expect(html.split('data-etype').length - 1).toBe(1)
+  })
+
+  it('타입 값의 속성 탈출을 막는다 — 영숫자만 남긴다', () => {
+    const html = wikiLinksToHtml('[[e/acme]]', existing, new Map([['e/acme', '" onmouseover="x']]))
+    expect(html).toContain('data-etype="onmouseoverx"')
+    expect(html).not.toContain('onmouseover=')
+  })
 })

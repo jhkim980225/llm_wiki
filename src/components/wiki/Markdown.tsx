@@ -59,10 +59,13 @@ function digest(content: string): { rows: [string, string][]; excerpt: string } 
 export function Markdown({
   content,
   existingSlugs,
+  entityTypes,
   preview = false,
 }: {
   content: string
   existingSlugs?: Set<string>
+  /** slug → GraphRef.type. 있으면 해당 링크에 개체 배지(인물·조직…)가 붙는다. */
+  entityTypes?: Map<string, string>
   preview?: boolean
 }) {
   const [html, setHtml] = useState('')
@@ -76,11 +79,11 @@ export function Markdown({
   )
 
   useEffect(() => {
-    const withLinks = wikiLinksToHtml(content, existing)
+    const withLinks = wikiLinksToHtml(content, existing, entityTypes)
     Promise.resolve(marked.parse(withLinks)).then((parsed) => {
-      setHtml(DOMPurify.sanitize(parsed, { ADD_ATTR: ['class'] }))
+      setHtml(DOMPurify.sanitize(parsed, { ADD_ATTR: ['class', 'data-etype'] }))
     })
-  }, [content, existing])
+  }, [content, existing, entityTypes])
 
   const openPreview = async (slug: string) => {
     setLoading(true)

@@ -13,8 +13,15 @@ const escapeHtml = (s: string) =>
  * [[slug]] / [[slug|표시명]]을 앵커로 바꾼다. 마크다운 파싱 **전에** 돌린다.
  * 존재하지 않는 slug에는 dead 클래스를 붙여 UI가 붉은 링크로 표시하게 한다.
  * slug와 표시명 모두 사용자 입력이므로 반드시 이스케이프한다 (속성 탈출 방지).
+ *
+ * entityTypes(slug → GraphRef.type)가 오면 해당 링크에 data-etype을 붙인다 —
+ * CSS가 출처 배지(이메일·카톡) 대신 개체 배지(인물·조직…)를 띄운다.
  */
-export function wikiLinksToHtml(content: string, existingSlugs: Set<string>): string {
+export function wikiLinksToHtml(
+  content: string,
+  existingSlugs: Set<string>,
+  entityTypes?: Map<string, string>,
+): string {
   return content.replace(WIKI_LINK_RE, (_whole, inner: string) => {
     const pipe = inner.indexOf('|')
     const raw = (pipe >= 0 ? inner.slice(0, pipe) : inner).trim()
@@ -23,6 +30,9 @@ export function wikiLinksToHtml(content: string, existingSlugs: Set<string>): st
     const display = pipe >= 0 ? inner.slice(pipe + 1).trim() : raw
     const dead = existingSlugs.has(slug) ? '' : ' dead'
     const href = encodeURI('/wiki/' + slug).replace(/"/g, '%22')
-    return `<a class="wikilink${dead}" href="${escapeHtml(href)}">${escapeHtml(display)}</a>`
+    const etype = entityTypes?.get(slug)
+    // 타입 값은 저쪽 API가 주는 문자열 — 속성에 넣기 전에 영숫자만 남긴다.
+    const etypeAttr = etype ? ` data-etype="${etype.replace(/[^a-zA-Z0-9_-]/g, '')}"` : ''
+    return `<a class="wikilink${dead}"${etypeAttr} href="${escapeHtml(href)}">${escapeHtml(display)}</a>`
   })
 }

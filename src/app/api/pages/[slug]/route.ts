@@ -28,7 +28,7 @@ export async function GET(_: Request, { params }: { params: Promise<{ slug: stri
   //    휴지통에 가면 파란 링크가 문서 없음 화면으로 떨어지는 오차는 감수한다.
   //    사람·에이전트 문서는 링크가 수십 개라 기존 계산이 싸다.
   const skipDead = page.lastEditSource === 'ontology'
-  const [backlinks, existing] = await Promise.all([
+  const [backlinks, existing, refs] = await Promise.all([
     db.page.findMany({
       where: { slug: { in: page.inLinks.slice(0, MAX_BACKLINKS) }, deletedAt: null },
       select: { slug: true, title: true },
@@ -41,6 +41,10 @@ export async function GET(_: Request, { params }: { params: Promise<{ slug: stri
           where: { slug: { in: outLinks }, deletedAt: null },
           select: { slug: true },
         }),
+    // 본문 링크 중 그래프 개체(GraphRef)인 것 — 화면이 타입 배지(인물·조직…)를 단다.
+    // GraphRef는 수십~수백 행이라 전량을 가져와 앱에서 교집합을 계산한다
+    // (outLinks 수천 개짜리 IN을 다시 만들지 않기 위해 — 위 4초 사건과 같은 이유).
+    db.graphRef.findMany({ select: { pageSlug: true, type: true } }),
   ])
   let deadLinks: string[] = []
   if (existing) {
@@ -49,9 +53,14 @@ export async function GET(_: Request, { params }: { params: Promise<{ slug: stri
   }
   const backlinkTotal = page.inLinks.length
 
+  const outSet = new Set(outLinks)
+  const entityLinks = refs
+    .filter((r) => outSet.has(r.pageSlug))
+    .map((r) => ({ slug: r.pageSlug, type: r.type }))
+
   // inLinks(수천 개 배열)는 화면이 안 쓴다 — backlinks로 대체된 원본이라 응답에서 뺀다.
   const { inLinks: _inLinks, ...rest } = page
-  return NextResponse.json({ ...rest, outLinks, backlinks, backlinkTotal, deadLinks })
+  return NextResponse.json({ ...rest, outLinks, backlinks, backlinkTotal, deadLinks, entityLinks })
 }
 
 export async function PUT(req: Request, { params }: { params: Promise<{ slug: string }> }) {

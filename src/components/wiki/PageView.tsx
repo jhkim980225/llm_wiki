@@ -23,6 +23,8 @@ export type PageData = {
   /** 상한(200)까지만 온다. 총수는 backlinkTotal. */
   backlinks: { slug: string; title: string }[]
   backlinkTotal: number
+  /** 본문 링크 중 그래프 개체 — 링크에 타입 배지(인물·조직…)를 단다. */
+  entityLinks?: { slug: string; type: string }[]
 }
 
 const EDITOR: Record<string, string> = {
@@ -48,6 +50,11 @@ export function PageView({ page, onEdit }: { page: PageData; onEdit: () => void 
     const dead = new Set(page.deadLinks)
     return new Set(page.outLinks.filter((s) => !dead.has(s)))
   }, [page.outLinks, page.deadLinks])
+
+  const entityTypes = useMemo(
+    () => new Map((page.entityLinks ?? []).map((e) => [e.slug, e.type])),
+    [page.entityLinks],
+  )
 
   // Delete 키로 휴지통 이동(확인 대화상자 경유). 검색창 등 입력 중에는 무시한다.
   useEffect(() => {
@@ -135,7 +142,7 @@ export function PageView({ page, onEdit }: { page: PageData; onEdit: () => void 
 
       {/* 본문 링크는 dangerouslySetInnerHTML로 뿌려서 next/link가 될 수 없다.
           Markdown 안의 클릭 인터셉터가 라우터로 넘긴다 — 새로고침 없이 문서를 오간다. */}
-      <Markdown content={page.content} existingSlugs={existing} />
+      <Markdown content={page.content} existingSlugs={existing} entityTypes={entityTypes} />
 
       <section className="backlinks" onClick={interceptLinks(router)}>
         <h4>이 문서를 가리키는 문서 {page.backlinkTotal}</h4>
