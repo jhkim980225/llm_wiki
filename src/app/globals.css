@@ -3240,6 +3240,92 @@ a.card:hover {
   }
 }
 
+/* ── WBS 일정 (/wbs) ─────────────────────────────────────────── */
+.wbs-table {
+  border-collapse: collapse;
+  font-size: 13px;
+  width: 100%;
+  max-width: 900px;
+}
+.wbs-table th,
+.wbs-table td {
+  border: 1px solid var(--line);
+  padding: 6px 10px;
+  text-align: left;
+  color: var(--text-body);
+}
+.wbs-table th {
+  background: var(--panel);
+  color: var(--text-dim);
+  font-weight: 600;
+}
+
+.wbs-grid {
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.wbs-grid th,
+.wbs-grid td {
+  border: 1px solid var(--line);
+  padding: 5px 8px;
+  white-space: nowrap;
+  color: var(--text-body);
+  background: var(--bg);
+}
+.wbs-grid th {
+  background: var(--panel);
+  color: var(--text-dim);
+  font-weight: 600;
+}
+.wbs-grid td.cell {
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--text-faint);
+}
+.wbs-grid td.cell.filled {
+  cursor: pointer;
+  color: var(--text);
+  background: rgb(45 212 191 / 8%);
+}
+.wbs-grid td.cell.filled:hover {
+  background: rgb(45 212 191 / 16%);
+}
+
+.wbs-detail {
+  width: 360px;
+  flex-shrink: 0;
+  border-left: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--panel);
+}
+.wbs-detail .head {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--line);
+}
+.wbs-detail .body {
+  overflow-y: auto;
+  min-height: 0;
+  padding: 16px;
+}
+
+@media (max-width: 768px) {
+  .wbs-detail {
+    position: fixed;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    z-index: 30;
+    width: min(360px, 88vw);
+    box-shadow: -8px 0 24px rgb(0 0 0 / 35%);
+  }
+}
+
 /* ── 좁은 화면 공통 폴리시 ────────────────────────────────────── */
 @media (max-width: 640px) {
   /* 대화·문서 본문 좌우 여백 축소 */

@@ -2,6 +2,7 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import {
+  CalendarRange,
   ChevronsRight,
   Home,
   Menu,
@@ -105,6 +106,7 @@ export function Vault({ children }: { children: ReactNode }) {
         />
         <SidebarItem icon={<Sparkles size={IC} aria-hidden />} label="AI 작성" href="/ask" on={pathname === '/ask'} />
         <SidebarItem icon={<MessageSquare size={IC} aria-hidden />} label="채팅" href="/chat" on={pathname === '/chat'} />
+        <SidebarItem icon={<CalendarRange size={IC} aria-hidden />} label="WBS 일정" href="/wbs" on={pathname === '/wbs'} />
         <SidebarItem icon={<Trash2 size={IC} aria-hidden />} label="휴지통" href="/trash" on={pathname === '/trash'} />
 
         <span className="grow" />

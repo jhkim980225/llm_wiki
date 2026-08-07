@@ -180,3 +180,62 @@ model ChatMessage {
 
   @@index([conversationId, createdAt])
 }
+
+// WBS(업무분해) 계획 + LLM이 채우는 주간일정. 사용자·워크스페이스 스코프.
+// User/Workspace와는 스칼라 FK로만 잇는다(격리).
+model WbsPlan {
+  id          String    @id @default(uuid())
+  userId      String
+  workspaceId String
+  title       String    @default("새 WBS")
+  weekStart   String? // 'YYYY-MM-DD' (선택)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  tasks       WbsTask[]
+
+  @@index([userId, workspaceId, updatedAt])
+}
+
+model WbsTask {
+  id           String          @id @default(uuid())
+  planId       String
+  plan         WbsPlan         @relation(fields: [planId], references: [id], onDelete: Cascade)
+  wbsCode      String? // 예: '1.2'
+  title        String
+  assignee     String?
+  startDate    String? // 'YYYY-MM-DD'
+  endDate      String?
+  durationDays Int?
+  sortOrder    Int             @default(0)
+  entries      ScheduleEntry[]
+
+  @@index([planId, sortOrder])
+}
+
+// 채우기 배치의 진행상태(플랜당 1개, 폴링용). 재실행하면 덮어쓴다.
+model WbsFillJob {
+  id         String    @id @default(uuid())
+  planId     String    @unique
+  status     String    @default("running") // running | done | error
+  total      Int       @default(0)
+  done       Int       @default(0)
+  error      String?
+  startedAt  DateTime  @default(now())
+  finishedAt DateTime?
+}
+
+// 셀 = (task, date). LLM 배치가 채운다. 클릭하면 detail(markdown)을 보여준다.
+model ScheduleEntry {
+  id        String   @id @default(uuid())
+  taskId    String
+  task      WbsTask  @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  date      String // 'YYYY-MM-DD'
+  summary   String // 셀에 표시되는 한 줄
+  detail    String   @default("") // 클릭 시 상세(markdown)
+  status    String   @default("filled") // pending | filled
+  source    String   @default("llm") // llm | user
+  createdAt DateTime @default(now())
+
+  @@unique([taskId, date])
+  @@index([taskId, date])
+}
