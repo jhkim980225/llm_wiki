@@ -14,6 +14,8 @@ export async function GET(req: Request) {
   const url = new URL(req.url)
   const slug = url.searchParams.get('slug')?.trim()
   const name = url.searchParams.get('name')?.trim()
+  // 관계 하나만 골라 보기 — 화면의 필터 칩. 값은 buildEgo가 이웃의 rel과 대조만 한다.
+  const rel = url.searchParams.get('rel')?.trim() || undefined
   if (!slug && !name) return Response.json({ error: 'slug 또는 name이 필요합니다' }, { status: 400 })
 
   // slug 조회는 GraphRef가 없어도 적재본 개체 문서면 즉석 참조로 그린다.
@@ -21,7 +23,7 @@ export async function GET(req: Request) {
   if (!ref) return Response.json({ error: '개체 참조가 없습니다' }, { status: 404 })
 
   try {
-    const { ego, ambiguousCount } = await loadEgo(ref)
+    const { ego, ambiguousCount } = await loadEgo(ref, { rel })
     return Response.json({
       center: ref.pageSlug,
       name: ref.name,
@@ -31,6 +33,7 @@ export async function GET(req: Request) {
       nodes: ego.nodes,
       edges: ego.edges,
       neighborCount: ego.neighborCount,
+      rels: ego.rels,
     })
   } catch (e) {
     return Response.json({ error: (e as Error).message }, { status: 400 })

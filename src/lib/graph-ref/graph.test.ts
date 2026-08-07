@@ -178,7 +178,27 @@ describe('buildEgo', () => {
       nodes: [{ slug: 'urn:t:e:kim', title: '김', pageType: 'entity', degree: 0 }],
       edges: [],
       neighborCount: 0,
+      rels: [],
     })
+  })
+
+  // 관계 하나를 고르면 그 관계만 50개까지, 칩 목록(rels)은 전체 기준 유지
+  it('rel 필터 — 그 관계만 그리고 rels·칩은 전체 기준', () => {
+    const many = Array.from({ length: 60 }, (_, i) =>
+      row('urn:t:rel:usesAccount', `urn:t:e:a${String(i).padStart(2, '0')}`, 'out', `계정${i}`),
+    )
+    const r = buildEgo(source, center, [...many, row('urn:t:rel:worksAt', 'urn:t:e:feda', 'out', '페다')], {
+      rel: 'usesAccount',
+    })
+
+    expect(r.nodes).toHaveLength(51) // 중심 + 50
+    expect(r.neighborCount).toBe(60) // 필터된 관계의 전체 수
+    expect(r.rels).toEqual([
+      { rel: 'usesAccount', count: 60 },
+      { rel: 'worksAt', count: 1 },
+    ])
+    // 다른 관계는 그리지 않는다
+    expect(r.nodes.slice(1).every((n) => n.slug.startsWith('urn:t:e:a'))).toBe(true)
   })
 
   it('라벨 없는 이웃은 localName을 표시명으로 쓴다', () => {

@@ -1,6 +1,6 @@
 'use client'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Maximize, Minus, Plus, Waypoints } from 'lucide-react'
+import { BookOpen, ExternalLink, Maximize, Minus, Plus, Waypoints } from 'lucide-react'
 import type { GraphEdge, GraphNode, XY } from '@/lib/wiki/graph'
 import { layoutGraph } from '@/lib/wiki/graph'
 import { normalizeSlug } from '@/lib/wiki/slug'
@@ -13,9 +13,15 @@ type EgoData = {
   ambiguousCount: number
   nodes: GraphNode[]
   edges: GraphEdge[]
-  /** 이웃 총수. nodes보다 많으면 일부만 그린 것이다. */
   neighborCount: number
+  rels: { rel: string; count: number }[]
 }
+
+/** 선택한 이웃의 문서 미리보기 — 있으면 요약, 없으면 만들기 안내. */
+type Preview =
+  | { state: 'loading' }
+  | { state: 'found'; title: string; summary: string; pageType: string }
+  | { state: 'missing' }
 
 /** slug의 각 경로 조각만 인코딩해 /wiki 경로를 만든다 (FileTree·GraphView와 같은 규칙). */
 const wikiHref = (slug: string) => '/wiki/' + slug.split('/').map(encodeURIComponent).join('/')
@@ -29,21 +35,28 @@ const radius = (degree: number) => 13 + Math.min(9, degree)
  * Page.outLinks 전제에 묶여 있다. 여기는 그래프 DB를 직접 읽는다 — 갓 승격한 문서는
  * [[링크]]가 아직 없어 outLinks로 그리면 노드 하나만 뜬다.
  * 공유하는 것은 순수 레이아웃 함수 하나뿐이다.
+ *
+ * 관계 칩으로 한 관계만 골라 볼 수 있고(상한 50), 노드를 고르면 우측 패널에
+ * 해당 문서 미리보기가 뜬다 — 문서 그래프(/graph)의 인스펙터와 같은 사용감.
  */
 export function EntityGraph({ slug }: { slug: string }) {
   const wrapRef = useRef<HTMLDivElement>(null)
   const svgRef = useRef<SVGSVGElement>(null)
 
   const [data, setData] = useState<EgoData | null>(null)
+  const [rel, setRel] = useState<string | null>(null)
   const [error, setError] = useState('')
   const [selected, setSelected] = useState<string | null>(null)
+  const [preview, setPreview] = useState<Preview | null>(null)
   const [t, setT] = useState({ x: 0, y: 0, k: 1 })
 
   useEffect(() => {
     let stale = false
     setData(null)
     setError('')
-    fetch(`/api/graph-ref/graph?slug=${encodeURIComponent(slug)}`)
+    setSelected(null)
+    const q = rel ? `&rel=${encodeURIComponent(rel)}` : ''
+    fetch(`/api/graph-ref/graph?slug=${encodeURIComponent(slug)}${q}`)
       .then(async (r) => {
         const body = await r.json().catch(() => ({}))
         if (!r.ok) throw new Error(body.error ?? '그래프를 불러오지 못했습니다.')
@@ -54,7 +67,7 @@ export function EntityGraph({ slug }: { slug: string }) {
     return () => {
       stale = true
     }
-  }, [slug])
+  }, [slug, rel])
 
   const pos = useMemo<Record<string, XY>>(() => {
     if (!data) return {}
@@ -77,12 +90,9 @@ export function EntityGraph({ slug }: { slug: string }) {
     setT({ k, x: el.clientWidth / 2 - cx * k, y: el.clientHeight / 2 - cy * k })
   }
 
-  const fitted = useRef(false)
+  // 데이터가 올 때마다(필터 전환 포함) 화면 맞춤
   useEffect(() => {
-    if (!fitted.current && Object.keys(pos).length) {
-      fitted.current = true
-      fit()
-    }
+    if (Object.keys(pos).length) fit()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pos])
 
@@ -120,15 +130,40 @@ export function EntityGraph({ slug }: { slug: string }) {
     })
   }
 
-  if (error) return <div className="entity-graph empty">{error}</div>
-  if (!data) return <div className="entity-graph empty">그래프를 불러오는 중…</div>
-
-  const center = data.nodes[0]
-  const drawn = Math.max(0, data.nodes.length - 1)
-  const sel = data.nodes.find((n) => n.slug === selected)
+  const center = data?.nodes[0]
+  const sel = data?.nodes.find((n) => n.slug === selected)
+  const isCenter = sel && sel.slug === center?.slug
   // 이웃 문서 주소는 라벨로 만든다 — 적재본·승격본이 같은 규칙(entitySlug)을 쓰므로
   // 이미 있는 문서면 그대로 열리고, 없으면 문서 없음 화면이 받는다.
-  const selHref = sel ? wikiHref(`${data.sourceId}/${normalizeSlug(sel.title)}`) : ''
+  const selSlug = sel && data && !isCenter ? `${data.sourceId}/${normalizeSlug(sel.title)}` : ''
+
+  // 선택한 이웃의 문서 미리보기
+  useEffect(() => {
+    if (!selSlug) {
+      setPreview(null)
+      return
+    }
+    let stale = false
+    setPreview({ state: 'loading' })
+    fetch(`/api/pages/${encodeURIComponent(selSlug)}`)
+      .then(async (r) => {
+        if (stale) return
+        if (!r.ok) {
+          setPreview({ state: 'missing' })
+          return
+        }
+        const p = await r.json()
+        if (!stale)
+          setPreview({ state: 'found', title: p.title, summary: p.summary, pageType: p.pageType })
+      })
+      .catch(() => !stale && setPreview({ state: 'missing' }))
+    return () => {
+      stale = true
+    }
+  }, [selSlug])
+
+  if (error) return <div className="entity-graph empty">{error}</div>
+  if (!data) return <div className="entity-graph empty">그래프를 불러오는 중…</div>
 
   return (
     <div className="entity-graph">
@@ -194,12 +229,30 @@ export function EntityGraph({ slug }: { slug: string }) {
             <Waypoints size={12} aria-hidden /> {data.name} · {data.type}
           </span>
           <span className="meta">
-            {drawn < data.neighborCount
-              ? `이웃 ${data.neighborCount}개 중 ${drawn}`
-              : `이웃 ${drawn}`}{' '}
+            {data.nodes.length - 1 < data.neighborCount
+              ? `이웃 ${data.neighborCount}개 중 ${data.nodes.length - 1}`
+              : `이웃 ${data.nodes.length - 1}`}{' '}
             · 관계 {data.edges.length}
           </span>
         </div>
+
+        {/* 관계 종류 필터 — 하나를 고르면 그 관계만 50개까지 그린다 */}
+        {data.rels.length > 1 && (
+          <div className="rel-chips" role="tablist" aria-label="관계 종류">
+            <button className={rel === null ? 'on' : ''} onClick={() => setRel(null)}>
+              전체
+            </button>
+            {data.rels.map((r) => (
+              <button
+                key={r.rel}
+                className={rel === r.rel ? 'on' : ''}
+                onClick={() => setRel(rel === r.rel ? null : r.rel)}
+              >
+                {r.rel} {r.count}
+              </button>
+            ))}
+          </div>
+        )}
 
         <div className="graph-controls">
           <button onClick={() => zoom(1 / 1.25)} aria-label="축소">
@@ -220,17 +273,64 @@ export function EntityGraph({ slug }: { slug: string }) {
           </div>
         )}
 
-        {sel && sel.slug !== center?.slug && (
-          <div className="pick">
-            <span>{sel.title}</span>
-            <a href={selHref}>문서 열기</a>
-          </div>
-        )}
-
         {data.nodes.length <= 1 && (
           <div className="empty-mid">그래프에서 이 개체의 관계를 찾지 못했습니다.</div>
         )}
       </div>
+
+      {/* 우측 패널 — 문서 그래프(/graph) 인스펙터와 같은 사용감 */}
+      <aside className="graph-inspector" aria-label="개체 상세">
+        {sel ? (
+          isCenter ? (
+            <div className="placeholder">지금 보고 있는 문서입니다.</div>
+          ) : (
+            <>
+              <div className="head">
+                <span className="ic">
+                  <BookOpen size={18} aria-hidden />
+                </span>
+                <div className="t">
+                  <h3>{sel.title}</h3>
+                  <div className="path">/{selSlug}</div>
+                </div>
+              </div>
+
+              {preview?.state === 'found' && (
+                <>
+                  <div className="sec">
+                    <span className="badge">
+                      {preview.pageType === 'entity' ? '온톨로지 개체' : '문서'}
+                    </span>
+                  </div>
+                  {preview.summary && (
+                    <div className="sec">
+                      <h4>요약</h4>
+                      <p className="summary">{preview.summary}</p>
+                    </div>
+                  )}
+                </>
+              )}
+              {preview?.state === 'missing' && (
+                <div className="sec">
+                  <p className="summary">
+                    아직 문서가 없습니다. 열면 그래프에서 문서를 만들 수 있습니다.
+                  </p>
+                </div>
+              )}
+              {preview?.state === 'loading' && <div className="sec placeholder">불러오는 중…</div>}
+
+              <div className="foot">
+                <a className="open-btn" href={wikiHref(selSlug)}>
+                  문서 열기
+                  <ExternalLink size={13} aria-hidden />
+                </a>
+              </div>
+            </>
+          )
+        ) : (
+          <div className="placeholder">노드를 선택하면 문서 미리보기가 표시됩니다.</div>
+        )}
+      </aside>
     </div>
   )
 }

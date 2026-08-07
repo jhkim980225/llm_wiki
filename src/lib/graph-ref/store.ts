@@ -13,7 +13,7 @@ import { query } from '@/lib/ontology/fetch'
 import { SOURCES, type OntologySource } from '@/lib/ontology/source'
 import { createOrRevivePage } from '@/lib/pages/save'
 import { buildEntityContent } from './content'
-import { buildEgo, type EgoResult } from './graph'
+import { buildEgo, type EgoOptions, type EgoResult } from './graph'
 import { assertReadOnly, enforceLimit, labelLookupQuery, neighborQuery } from './sparql'
 
 export type GraphRefRow = {
@@ -157,6 +157,7 @@ export async function refForSlug(pageSlug: string): Promise<GraphRefRow | null> 
  */
 export async function loadEgo(
   ref: GraphRefRow,
+  opts: EgoOptions = {},
 ): Promise<{ ego: EgoResult; uri: string; ambiguousCount: number }> {
   const source = sourceById(ref.sourceId)
   const { uri, ambiguousCount } = await resolveUri(ref)
@@ -170,7 +171,7 @@ export async function loadEgo(
   }
 
   const rows = await query(source, sparql)
-  return { ego: buildEgo(source, { uri, label: ref.name }, rows), uri, ambiguousCount }
+  return { ego: buildEgo(source, { uri, label: ref.name }, rows, opts), uri, ambiguousCount }
 }
 
 /** 소스별 폴더. import.ts의 ensureFolder와 같은 규칙이라 같은 폴더로 떨어진다. */
