@@ -2,7 +2,7 @@ import { escapeLiteral } from '@/lib/fuseki/client'
 import type { OntologySource } from './source'
 import type { RawEntity, RawTriple } from './build'
 
-type Binding = Record<string, { type: string; value: string }>
+export type Binding = Record<string, { type: string; value: string }>
 
 /**
  * 소스마다 데이터를 기본 그래프에 두기도 하고 named graph에 두기도 한다
@@ -11,7 +11,12 @@ type Binding = Record<string, { type: string; value: string }>
 const anyGraph = (pattern: string) =>
   `{ ${pattern} } UNION { GRAPH ?__g { ${pattern} } }`
 
-async function query(source: OntologySource, sparql: string): Promise<Binding[]> {
+/**
+ * 임의 SPARQL을 소스에 던지고 바인딩을 돌려준다. 적재 외에 GraphRef(개체 조회)도 쓴다.
+ * 외부(LLM)가 만든 쿼리를 넣을 때는 호출자가 먼저 `graph-ref/sparql.ts`의
+ * `assertReadOnly`를 통과시켜야 한다 — 여기서는 검사하지 않는다.
+ */
+export async function query(source: OntologySource, sparql: string): Promise<Binding[]> {
   const headers: Record<string, string> = {
     'Content-Type': 'application/sparql-query',
     Accept: 'application/sparql-results+json',

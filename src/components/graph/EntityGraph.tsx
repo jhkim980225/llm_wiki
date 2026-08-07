@@ -1,0 +1,230 @@
+'use client'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { Maximize, Minus, Plus, Waypoints } from 'lucide-react'
+import type { GraphEdge, GraphNode, XY } from '@/lib/wiki/graph'
+import { layoutGraph } from '@/lib/wiki/graph'
+import { normalizeSlug } from '@/lib/wiki/slug'
+
+type EgoData = {
+  center: string
+  name: string
+  type: string
+  sourceId: string
+  ambiguousCount: number
+  nodes: GraphNode[]
+  edges: GraphEdge[]
+}
+
+/** slug의 각 경로 조각만 인코딩해 /wiki 경로를 만든다 (FileTree·GraphView와 같은 규칙). */
+const wikiHref = (slug: string) => '/wiki/' + slug.split('/').map(encodeURIComponent).join('/')
+
+const radius = (degree: number) => 13 + Math.min(9, degree)
+
+/**
+ * 개체 하나를 중심으로 한 1홉 관계 그래프.
+ *
+ * 문서 전체 그래프(GraphView)와 따로 두는 이유: 저쪽은 /api/graph 전량 조회와
+ * Page.outLinks 전제에 묶여 있다. 여기는 그래프 DB를 직접 읽는다 — 갓 승격한 문서는
+ * [[링크]]가 아직 없어 outLinks로 그리면 노드 하나만 뜬다.
+ * 공유하는 것은 순수 레이아웃 함수 하나뿐이다.
+ */
+export function EntityGraph({ slug }: { slug: string }) {
+  const wrapRef = useRef<HTMLDivElement>(null)
+  const svgRef = useRef<SVGSVGElement>(null)
+
+  const [data, setData] = useState<EgoData | null>(null)
+  const [error, setError] = useState('')
+  const [selected, setSelected] = useState<string | null>(null)
+  const [t, setT] = useState({ x: 0, y: 0, k: 1 })
+
+  useEffect(() => {
+    let stale = false
+    setData(null)
+    setError('')
+    fetch(`/api/graph-ref/graph?slug=${encodeURIComponent(slug)}`)
+      .then(async (r) => {
+        const body = await r.json().catch(() => ({}))
+        if (!r.ok) throw new Error(body.error ?? '그래프를 불러오지 못했습니다.')
+        return body as EgoData
+      })
+      .then((d) => !stale && setData(d))
+      .catch((e: Error) => !stale && setError(e.message))
+    return () => {
+      stale = true
+    }
+  }, [slug])
+
+  const pos = useMemo<Record<string, XY>>(() => {
+    if (!data) return {}
+    const size = Math.max(420, Math.sqrt(data.nodes.length) * 150)
+    return layoutGraph(data.nodes, data.edges, { width: size, height: size })
+  }, [data])
+
+  const fit = () => {
+    const el = wrapRef.current
+    const pts = Object.values(pos)
+    if (!el || pts.length === 0) return
+    const xs = pts.map((p) => p.x)
+    const ys = pts.map((p) => p.y)
+    const pad = 80
+    const bw = Math.max(...xs) - Math.min(...xs) + pad * 2
+    const bh = Math.max(...ys) - Math.min(...ys) + pad * 2
+    const cx = (Math.max(...xs) + Math.min(...xs)) / 2
+    const cy = (Math.max(...ys) + Math.min(...ys)) / 2
+    const k = Math.min(el.clientWidth / bw, el.clientHeight / bh, 1.4)
+    setT({ k, x: el.clientWidth / 2 - cx * k, y: el.clientHeight / 2 - cy * k })
+  }
+
+  const fitted = useRef(false)
+  useEffect(() => {
+    if (!fitted.current && Object.keys(pos).length) {
+      fitted.current = true
+      fit()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pos])
+
+  // 휠 줌 — passive:false가 필요해서 직접 붙인다 (GraphView와 같은 이유)
+  useEffect(() => {
+    const svg = svgRef.current
+    if (!svg) return
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault()
+      const rect = svg.getBoundingClientRect()
+      const cx = e.clientX - rect.left
+      const cy = e.clientY - rect.top
+      const f = Math.exp(-e.deltaY * 0.0012)
+      setT((prev) => {
+        const k = Math.min(3, Math.max(0.15, prev.k * f))
+        const real = k / prev.k
+        return { k, x: cx - (cx - prev.x) * real, y: cy - (cy - prev.y) * real }
+      })
+    }
+    svg.addEventListener('wheel', onWheel, { passive: false })
+    return () => svg.removeEventListener('wheel', onWheel)
+  }, [data])
+
+  const drag = useRef<{ x: number; y: number } | null>(null)
+
+  const zoom = (f: number) => {
+    const el = wrapRef.current
+    if (!el) return
+    const cx = el.clientWidth / 2
+    const cy = el.clientHeight / 2
+    setT((prev) => {
+      const k = Math.min(3, Math.max(0.15, prev.k * f))
+      const real = k / prev.k
+      return { k, x: cx - (cx - prev.x) * real, y: cy - (cy - prev.y) * real }
+    })
+  }
+
+  if (error) return <div className="entity-graph empty">{error}</div>
+  if (!data) return <div className="entity-graph empty">그래프를 불러오는 중…</div>
+
+  const center = data.nodes[0]
+  const sel = data.nodes.find((n) => n.slug === selected)
+  // 이웃 문서 주소는 라벨로 만든다 — 적재본·승격본이 같은 규칙(entitySlug)을 쓰므로
+  // 이미 있는 문서면 그대로 열리고, 없으면 문서 없음 화면이 받는다.
+  const selHref = sel ? wikiHref(`${data.sourceId}/${normalizeSlug(sel.title)}`) : ''
+
+  return (
+    <div className="entity-graph">
+      <div className="canvas" ref={wrapRef}>
+        <svg
+          ref={svgRef}
+          onPointerDown={(e) => {
+            if ((e.target as Element).closest('.gnode')) return
+            drag.current = { x: e.clientX - t.x, y: e.clientY - t.y }
+            e.currentTarget.setPointerCapture(e.pointerId)
+          }}
+          onPointerMove={(e) => {
+            if (!drag.current) return
+            setT((prev) => ({ ...prev, x: e.clientX - drag.current!.x, y: e.clientY - drag.current!.y }))
+          }}
+          onPointerUp={() => {
+            drag.current = null
+          }}
+          onClick={(e) => {
+            if (!(e.target as Element).closest('.gnode')) setSelected(null)
+          }}
+          role="img"
+          aria-label={`${data.name} 관계 그래프`}
+        >
+          <g transform={`translate(${t.x} ${t.y}) scale(${t.k})`}>
+            {data.edges.map((e) => {
+              const a = pos[e.source]
+              const b = pos[e.target]
+              if (!a || !b) return null
+              const on = selected === e.source || selected === e.target
+              return (
+                <line
+                  key={e.source + ' ' + e.target}
+                  className={`gedge${on ? ' on' : ''}`}
+                  x1={a.x}
+                  y1={a.y}
+                  x2={b.x}
+                  y2={b.y}
+                />
+              )
+            })}
+            {data.nodes.map((n) => {
+              const p = pos[n.slug]
+              if (!p) return null
+              const r = radius(n.degree) + (n.slug === center?.slug ? 4 : 0)
+              return (
+                <g
+                  key={n.slug}
+                  className={`gnode entity${selected === n.slug ? ' sel' : ''}`}
+                  transform={`translate(${p.x} ${p.y})`}
+                  onClick={() => setSelected(n.slug)}
+                >
+                  <circle r={r} />
+                  <text y={r + 14}>{n.title}</text>
+                </g>
+              )
+            })}
+          </g>
+        </svg>
+
+        <div className="graph-toolbar">
+          <span className="scope">
+            <Waypoints size={12} aria-hidden /> {data.name} · {data.type}
+          </span>
+          <span className="meta">
+            이웃 {Math.max(0, data.nodes.length - 1)} · 관계 {data.edges.length}
+          </span>
+        </div>
+
+        <div className="graph-controls">
+          <button onClick={() => zoom(1 / 1.25)} aria-label="축소">
+            <Minus size={14} aria-hidden />
+          </button>
+          <span className="zoom">{Math.round(t.k * 100)}%</span>
+          <button onClick={() => zoom(1.25)} aria-label="확대">
+            <Plus size={14} aria-hidden />
+          </button>
+          <button onClick={fit} aria-label="화면 맞춤">
+            <Maximize size={14} aria-hidden />
+          </button>
+        </div>
+
+        {data.ambiguousCount > 1 && (
+          <div className="warn">
+            같은 이름의 개체가 {data.ambiguousCount}건 있습니다. 다른 개체일 수 있습니다.
+          </div>
+        )}
+
+        {sel && sel.slug !== center?.slug && (
+          <div className="pick">
+            <span>{sel.title}</span>
+            <a href={selHref}>문서 열기</a>
+          </div>
+        )}
+
+        {data.nodes.length <= 1 && (
+          <div className="empty-mid">그래프에서 이 개체의 관계를 찾지 못했습니다.</div>
+        )}
+      </div>
+    </div>
+  )
+}

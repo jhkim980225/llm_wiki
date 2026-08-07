@@ -279,3 +279,25 @@ model FlowRun {
   @@index([flowId, startedAt])
   @@index([startedAt])
 }
+
+// 그래프 DB에 있는 개체를 가리키는 참조. 개체 자체가 아니라 포인터 + 조회 레시피다.
+// 대화에 나온 개체를 전부 Page로 만들면 빈 껍데기가 트리·검색을 오염시키므로,
+// 여기에 가볍게 쌓아두고 사람이 클릭한 것만 문서로 승격한다(promoted).
+// 문서가 없는 상태에서도 [[링크]]가 걸리도록 pageSlug를 미리 예약해 둔다.
+model GraphRef {
+  id         String   @id @default(uuid())
+  name       String // 표시명. "정아라"
+  type       String // 소스 API가 주는 타입 값 그대로. "person" 등
+  sourceId   String // OntologySource.id — "ejkim"
+  uri        String? // 그래프 subject URI. 없으면 라벨로 조회해 채운다
+  sparql     String   @default("") // 이웃 조회 쿼리. 비면 템플릿으로 만든다
+  pageSlug   String // entitySlug와 같은 규칙으로 미리 예약한 문서 주소
+  promoted   Boolean  @default(false)
+  lastSeenAt DateTime @default(now())
+  createdAt  DateTime @default(now())
+
+  // uri가 더 정확한 키지만 nullable이라 유니크로 못 쓴다.
+  @@unique([sourceId, name])
+  @@index([name])
+  @@index([pageSlug])
+}

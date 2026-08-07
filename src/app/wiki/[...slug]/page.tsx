@@ -1,8 +1,9 @@
 'use client'
 import { use, useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { MessageSquareText } from 'lucide-react'
+import { MessageSquareText, Waypoints } from 'lucide-react'
 import { DocumentTab } from '@/components/ui'
+import { EntityGraph } from '@/components/graph/EntityGraph'
 import { PageView, type PageData } from '@/components/wiki/PageView'
 import { PageEditor } from '@/components/wiki/PageEditor'
 import { RevisionDrawer } from '@/components/wiki/RevisionDrawer'
@@ -10,6 +11,9 @@ import { DocChatPanel } from '@/components/wiki/DocChatPanel'
 import { UNTITLED } from '@/components/vault/actions'
 
 type Tab = { slug: string; title: string }
+
+/** 이 slug가 그래프 개체를 가리키고 있나. 있으면 문서가 없어도 그래프에서 만들 수 있다. */
+type GraphRef = { name: string; type: string; sourceId: string; promoted: boolean }
 
 const MAX_TABS = 8
 
@@ -39,6 +43,10 @@ export default function WikiPage({ params }: { params: Promise<{ slug: string[] 
   const [editing, setEditing] = useState(false)
   const [showRevisions, setShowRevisions] = useState(false)
   const [chatOpen, setChatOpen] = useState(false)
+  const [graphOpen, setGraphOpen] = useState(false)
+  const [ref, setRef] = useState<GraphRef | null>(null)
+  const [promoting, setPromoting] = useState(false)
+  const [promoteError, setPromoteError] = useState('')
   const [draft, setDraft] = useState({ title: slug.split('/').pop() ?? slug, content: '' })
 
   const load = useCallback(async () => {
@@ -58,6 +66,38 @@ export default function WikiPage({ params }: { params: Promise<{ slug: string[] 
   useEffect(() => {
     load()
   }, [load])
+
+  // 이 slug에 걸린 그래프 개체 참조. 문서 없음 화면의 분기와 [그래프] 토글 노출을 가른다.
+  useEffect(() => {
+    let stale = false
+    setGraphOpen(false)
+    setPromoteError('')
+    fetch(`/api/graph-ref?slug=${encodeURIComponent(slug)}`)
+      .then((r) => (r.ok ? r.json() : { ref: null }))
+      .then((d) => !stale && setRef(d.ref ?? null))
+      .catch(() => !stale && setRef(null))
+    return () => {
+      stale = true
+    }
+  }, [slug])
+
+  const promote = async () => {
+    setPromoting(true)
+    setPromoteError('')
+    const res = await fetch('/api/graph-ref/promote', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ slug }),
+    })
+    setPromoting(false)
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}))
+      setPromoteError(body.error ?? '그래프에서 가져오지 못했습니다.')
+      return
+    }
+    setMissing(false)
+    await load()
+  }
 
   // 열린 문서를 탭에 등록한다. 이미 있으면 제목만 갱신해 자리를 지킨다.
   useEffect(() => {
@@ -114,6 +154,15 @@ export default function WikiPage({ params }: { params: Promise<{ slug: string[] 
           ))}
         </span>
         <span className="side">
+          {page && !editing && ref && (
+            <button
+              className={graphOpen ? 'quiet on' : 'quiet'}
+              onClick={() => setGraphOpen((v) => !v)}
+              title="개체 관계 그래프"
+            >
+              <Waypoints size={13} aria-hidden /> 그래프
+            </button>
+          )}
           {page && !editing && (
             <button
               className={chatOpen ? 'quiet on' : 'quiet'}
@@ -138,6 +187,22 @@ export default function WikiPage({ params }: { params: Promise<{ slug: string[] 
             <h1 style={{ fontSize: '1.6rem' }}>
               <code>{slug}</code> 문서가 없습니다
             </h1>
+
+            {/* 그래프에 있는 개체면 빈 문서를 쓰게 하지 않고 원본에서 끌어온다. */}
+            {ref && (
+              <div className="graphref-offer">
+                <p>
+                  <strong>{ref.name}</strong> 은(는) {ref.sourceId} 그래프에 있는 개체입니다.
+                  관계와 속성을 끌어와 문서로 만들 수 있습니다.
+                </p>
+                <button className="primary" onClick={promote} disabled={promoting}>
+                  <Waypoints size={13} aria-hidden />
+                  {promoting ? '가져오는 중…' : '그래프에서 문서 만들기'}
+                </button>
+                {promoteError && <p className="err">{promoteError}</p>}
+              </div>
+            )}
+
             <div style={{ display: 'grid', gap: 8, marginTop: 16 }}>
               <input
                 value={draft.title}
@@ -161,7 +226,10 @@ export default function WikiPage({ params }: { params: Promise<{ slug: string[] 
 
         {!missing && !page && <div className="empty">불러오는 중…</div>}
 
+        {page && !editing && graphOpen && <EntityGraph slug={slug} />}
+
         {page &&
+          !graphOpen &&
           (editing ? (
             <PageEditor
               page={page}

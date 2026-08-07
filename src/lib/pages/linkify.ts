@@ -40,24 +40,44 @@ export async function proposeLinks(slug: string, content: string): Promise<Propo
   // position()은 linkifyContent의 indexOf와 같은 대소문자 구분 정확 매칭이다.
   // SQL만 lower()로 느슨하게 하면 같은 술어가 두 군데로 갈라져 어긋나고,
   // lower(${content})는 행마다 본문을 통째로 복사한다.
-  const rows = await db.$queryRaw<{ slug: string; title: string }[]>`
-    SELECT slug, title
-    FROM "Page"
-    WHERE "deletedAt" IS NULL
-      AND slug <> ${slug}
-      AND char_length(title) >= ${MIN_TITLE_LENGTH}
-      AND position(title IN ${content}) > 0
-    ORDER BY char_length(title) DESC
+  //
+  // GraphRef도 후보에 넣는다. 아직 문서가 없는 개체를 링크로 걸어 두면, 클릭했을 때
+  // 문서 없음 화면이 "그래프에서 가져오기"를 띄운다. 새 링크 문법을 만들지 않는 이유가
+  // 이것이다 — 죽은 링크 + 기존 화면 분기로 같은 결과가 난다.
+  // UNION 결과에는 표현식 ORDER BY를 걸 수 없어(Postgres 0A000) 서브쿼리로 감싼다.
+  const rows = await db.$queryRaw<{ slug: string; title: string; prio: number }[]>`
+    SELECT c.slug, c.title, c.prio FROM (
+      SELECT slug, title, 0 AS prio
+      FROM "Page"
+      WHERE "deletedAt" IS NULL
+        AND slug <> ${slug}
+        AND char_length(title) >= ${MIN_TITLE_LENGTH}
+        AND position(title IN ${content}) > 0
+      UNION ALL
+      SELECT "pageSlug" AS slug, name AS title, 1 AS prio
+      FROM "GraphRef"
+      WHERE "pageSlug" <> ${slug}
+        AND char_length(name) >= ${MIN_TITLE_LENGTH}
+        AND position(name IN ${content}) > 0
+    ) c
+    ORDER BY char_length(c.title) DESC, c.prio
     LIMIT ${MAX_CANDIDATES}`
 
   // 제목이 겹치면 같은 소스 것을 고르고, 그래도 하나로 안 좁혀지면 버린다.
   // 동명이인은 설계상 존재한다 — build.ts가 라벨 충돌 시 slug에 -2를 붙이고,
   // 소스가 여럿이면 "미생물" 같은 이름이 소스마다 따로 있다.
   // 어느 쪽으로 걸지 정할 근거가 없으면 안 거는 게 맞다.
-  const bySlug = new Map(rows.map((r) => [r.slug, r.title]))
+  //
+  // 같은 이름이 Page에도 GraphRef에도 있으면 Page가 본체다(적재본이 이미 있는 경우).
+  // 이 좁히기를 먼저 해야, 승격 전 GraphRef가 동명이인처럼 보여 링크를 막지 않는다.
+  const best = new Map<string, number>()
+  for (const r of rows) best.set(r.title, Math.min(best.get(r.title) ?? 9, r.prio))
+  const candidates = rows.filter((r) => r.prio === best.get(r.title))
+
+  const bySlug = new Map(candidates.map((r) => [r.slug, r.title]))
   const mine = sourceOf(slug)
   const grouped = new Map<string, string[]>()
-  for (const r of rows) grouped.set(r.title, [...(grouped.get(r.title) ?? []), r.slug])
+  for (const r of candidates) grouped.set(r.title, [...(grouped.get(r.title) ?? []), r.slug])
 
   const refs: LinkRef[] = []
   for (const [matchText, slugs] of grouped) {

@@ -5,10 +5,15 @@ import { proposeLinks } from './linkify'
 const reset = async () => {
   await db.pageRevision.deleteMany()
   await db.page.deleteMany()
+  await db.graphRef.deleteMany()
 }
 
 const seed = (slug: string, title: string) =>
   db.page.create({ data: { slug, title, content: '', outLinks: [], inLinks: [] } })
+
+/** 아직 문서가 없는 그래프 개체. pageSlug는 승격될 자리를 미리 예약해 둔 것이다. */
+const seedRef = (name: string, pageSlug: string, sourceId = 'ejkim') =>
+  db.graphRef.create({ data: { name, type: 'person', sourceId, pageSlug } })
 
 describe('proposeLinks', () => {
   beforeEach(reset)
@@ -112,5 +117,28 @@ describe('proposeLinks', () => {
     const r = await proposeLinks('here', '사라진문서 이야기')
 
     expect(r.changed).toBe(false)
+  })
+
+  // 문서가 없어도 링크를 건다. 클릭하면 문서 없음 화면이 "그래프에서 가져오기"를 띄운다 —
+  // 새 링크 문법을 만들지 않는 대신 죽은 링크를 일부러 심는 설계다.
+  it('문서가 없는 그래프 개체도 링크 후보다', async () => {
+    await seedRef('정아라', 'ejkim/정아라')
+    await seed('here', '이 문서')
+
+    const r = await proposeLinks('here', '정아라 연구원이 회신했다')
+
+    expect(r.changed).toBe(true)
+    expect(r.added).toEqual([{ slug: 'ejkim/정아라', title: '정아라' }])
+  })
+
+  // 적재본이 이미 있으면 그쪽이 본체다. 좁히지 않으면 동명이인으로 보여 링크가 막힌다.
+  it('같은 이름이 문서에도 개체에도 있으면 문서를 고른다', async () => {
+    await seed('ejkim/정아라', '정아라')
+    await seedRef('정아라', 'ejkim/정아라-2', 'seunghoon')
+    await seed('here', '이 문서')
+
+    const r = await proposeLinks('here', '정아라 연구원이 회신했다')
+
+    expect(r.added).toEqual([{ slug: 'ejkim/정아라', title: '정아라' }])
   })
 })
