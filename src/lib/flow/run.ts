@@ -50,9 +50,15 @@ export async function runFlow(input: RunFlowInput): Promise<RunFlowResult> {
 
   const folderId = await resolveFolder(input.targetFolderId, input.targetFolderName)
 
+  // 지시에 담긴 사실(작성자·부서·날짜·금액 등)을 "근거 없음"으로 비우면 안 된다 —
+  // writeDoc의 지어내기 금지 규칙이 지시까지 무시한 실측 사례가 있어 명시한다.
+  const today = new Date().toISOString().slice(0, 10)
   const request =
     `${input.instruction}\n\n` +
-    `아래 [양식]을 반드시 그대로 따라 작성하라 — 제목·표·항목 구조를 유지하고, 자리표시자를 실제 내용으로 채운다.\n\n` +
+    `오늘 날짜: ${today}\n` +
+    `아래 [양식]을 반드시 그대로 따라 작성하라 — 제목·표·항목 구조를 유지하고, 자리표시자를 실제 내용으로 채운다.\n` +
+    `위 지시문에 적힌 정보(작성자·부서·날짜·금액·사유 등)는 확인된 사실이다 — 그대로 채워 넣고 "확인되지 않음"으로 비우지 마라.\n` +
+    `자리표시자의 예시 값(홍길동, YYYY-MM-DD, 000-0000 등)은 남기지 말고, 지시·근거 어디에도 없는 칸만 비워 둔다.\n\n` +
     `[양식: ${template.title}]\n${template.content}`
 
   const terms = await extractTerms(input.instruction)

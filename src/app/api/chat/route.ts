@@ -82,10 +82,17 @@ function makeChatTools() {
       }),
       execute: async ({ template, instruction, targetFolderName }) => {
         // 제목으로도 slug로도 찾는다 — 사용자는 보통 제목으로 말한다.
-        const page = await db.page.findFirst({
-          where: { deletedAt: null, OR: [{ slug: template }, { title: template }] },
-          select: { slug: true },
-        })
+        // 정확 일치가 없으면 부분 일치 폴백: "휴가신청서"로 "휴가신청서 양식"을 찾아야 한다.
+        const page =
+          (await db.page.findFirst({
+            where: { deletedAt: null, OR: [{ slug: template }, { title: template }] },
+            select: { slug: true },
+          })) ??
+          (await db.page.findFirst({
+            where: { deletedAt: null, title: { contains: template } },
+            select: { slug: true },
+            orderBy: [{ title: 'asc' }],
+          }))
         if (!page) return { error: `템플릿 문서를 찾지 못했습니다: ${template}` }
         try {
           const result = await runFlow({
