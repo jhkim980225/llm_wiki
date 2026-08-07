@@ -27,6 +27,7 @@ import {
 import { lineDiff } from '@/lib/wiki/diff'
 import { normalizeSlug } from '@/lib/wiki/slug'
 import { toast } from '@/lib/toast'
+import { Dialog } from '@/components/vault/Dialog'
 import type { PageData } from './PageView'
 
 type Conflict = { serverContent: string; serverVersion: number }
@@ -111,6 +112,7 @@ export function PageEditor({
   const [savedAt, setSavedAt] = useState(page.updatedAt)
   const [infoOpen, setInfoOpen] = useState(true)
   const [suggest, setSuggest] = useState<Suggest | null>(null)
+  const [confirmDelete, setConfirmDelete] = useState(false)
 
   const bodyRef = useRef<HTMLTextAreaElement>(null)
   const suggestTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
@@ -264,12 +266,15 @@ export function PageEditor({
     }
   }
 
-  // Ctrl+S 저장
+  // Ctrl+S 저장 · Delete 삭제(입력란에 포커스가 없을 때만 — 글자 지우기와 충돌한다)
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
         e.preventDefault()
         if (!saving) save(page.version)
+      }
+      if (e.key === 'Delete' && !(e.target as HTMLElement).closest('input, textarea, select, [contenteditable]')) {
+        setConfirmDelete(true)
       }
     }
     window.addEventListener('keydown', onKey)
@@ -327,7 +332,7 @@ export function PageEditor({
   }
 
   const remove = async () => {
-    if (!window.confirm(`'${title}' 문서를 삭제할까요? 휴지통에 7일간 보관됩니다.`)) return
+    setConfirmDelete(false)
     const res = await fetch(`/api/pages/${encodeURIComponent(page.slug)}`, { method: 'DELETE' })
     if (res.ok) {
       toast('휴지통으로 이동했습니다.', 'success')
@@ -628,11 +633,25 @@ export function PageEditor({
           </div>
 
           <div className="links danger">
-            <button onClick={remove}>
+            <button onClick={() => setConfirmDelete(true)}>
               <Trash2 size={14} aria-hidden /> 문서 삭제
             </button>
           </div>
         </aside>
+      )}
+
+      {confirmDelete && (
+        <Dialog
+          spec={{
+            mode: 'confirm',
+            title: '문서 삭제',
+            body: `"${title}"을 지웁니다. 이 문서를 가리키던 링크는 끊긴 링크로 남습니다.`,
+            confirm: '삭제',
+            danger: true,
+          }}
+          onConfirm={remove}
+          onCancel={() => setConfirmDelete(false)}
+        />
       )}
     </div>
   )

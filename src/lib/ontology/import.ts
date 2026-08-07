@@ -1,6 +1,6 @@
 import { db } from '@/lib/db'
 import { buildPages, type BuiltPage } from './build'
-import { fetchEntities, fetchLabels, fetchTriples } from './fetch'
+import { fetchEntities, fetchEntityCount, fetchLabels, fetchTriples } from './fetch'
 import type { OntologySource } from './source'
 
 /**
@@ -16,6 +16,8 @@ export type ImportResult = {
   created: number
   updated: number
   skipped: number
+  /** 이번 적재 결과에 없어 휴지통으로 보낸 이 소스의 온톨로지 문서 수 (부분 적재면 0). */
+  pruned: number
   ms: number
 }
 
@@ -35,11 +37,14 @@ async function ensureFolder(source: OntologySource): Promise<string> {
  */
 export async function importOntology(
   source: OntologySource,
-  opts: { limit?: number } = {},
+  opts: { limit?: number; prune?: boolean } = {},
 ): Promise<ImportResult> {
   const started = Date.now()
   const limit = opts.limit ?? 2000
 
+  // 전량 적재 여부는 소스의 실제 개체 수로 판정한다 — limit에 딱 걸리면
+  // entities.length < limit 휴리스틱이 영원히 부분 적재로 오판한다 (실측: ejkim 4만 초과).
+  const total = await fetchEntityCount(source)
   const entities = await fetchEntities(source, limit)
   const triples = await fetchTriples(
     source,
@@ -118,6 +123,31 @@ export async function importOntology(
     )
   }
 
+  // 소급 정리 — 이번 적재 결과에 없는 이 소스의 온톨로지 문서를 휴지통으로 보낸다.
+  // (분신 병합으로 사라진 빈 껍데기가 여기서 치워진다. 사람·에이전트 문서는 무관.)
+  // 부분 적재(limit에 걸림)면 스냅샷이 불완전하므로 자동 실행하지 않는다.
+  let pruned = 0
+  const fullSnapshot = entities.length >= total
+  if (opts.prune ?? fullSnapshot) {
+    const current = await db.page.findMany({
+      where: {
+        slug: { startsWith: `${source.id}/` },
+        lastEditSource: IMPORT_SOURCE,
+        deletedAt: null,
+      },
+      select: { id: true, slug: true },
+    })
+    const built = new Set(slugs)
+    const stale = current.filter((c) => !built.has(c.slug)).map((c) => c.id)
+    for (let i = 0; i < stale.length; i += CHUNK) {
+      await db.page.updateMany({
+        where: { id: { in: stale.slice(i, i + CHUNK) } },
+        data: { deletedAt: new Date() },
+      })
+    }
+    pruned = stale.length
+  }
+
   return {
     source: source.id,
     entities: entities.length,
@@ -125,6 +155,7 @@ export async function importOntology(
     created: toCreate.length,
     updated: toUpdate.length,
     skipped,
+    pruned,
     ms: Date.now() - started,
   }
 }

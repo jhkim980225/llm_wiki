@@ -69,6 +69,7 @@ type ImportResult = {
   created: number
   updated: number
   skipped: number
+  pruned: number
   ms: number
   error?: string
 }
@@ -106,14 +107,15 @@ function StatusTab() {
       const res = await fetch('/api/ontology', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ source: id, limit: 40000 }),
+        // ejkim이 13.8만 개체(실측 2026-08-07) — 전량이어야 소급 정리(prune)가 돈다
+        body: JSON.stringify({ source: id, limit: 200000 }),
       })
       const r: ImportResult = await res.json()
       if (!res.ok || r.error) {
         toast(`${name} 가져오기 실패: ${r.error ?? `HTTP ${res.status}`}`, 'error')
       } else {
         toast(
-          `${name}: 개체 ${r.entities.toLocaleString('ko-KR')} · 새 문서 ${r.created.toLocaleString('ko-KR')} · 갱신 ${r.updated.toLocaleString('ko-KR')} · 건너뜀 ${r.skipped} · ${(r.ms / 1000).toFixed(1)}초`,
+          `${name}: 개체 ${r.entities.toLocaleString('ko-KR')} · 새 문서 ${r.created.toLocaleString('ko-KR')} · 갱신 ${r.updated.toLocaleString('ko-KR')} · 건너뜀 ${r.skipped} · 정리 ${(r.pruned ?? 0).toLocaleString('ko-KR')} · ${(r.ms / 1000).toFixed(1)}초`,
           'success',
         )
       }

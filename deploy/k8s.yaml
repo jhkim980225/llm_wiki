@@ -133,22 +133,28 @@ spec:
             - configMapRef: { name: wiki-graph-env }
       containers:
         - name: app
-          image: wiki-graph:0.24.0
+          image: wiki-graph:0.37.0
           imagePullPolicy: Never
           envFrom:
             - configMapRef: { name: wiki-graph-env }
             # LLM API 키. optional — 없으면 뜨긴 뜨되 채팅만 안 된다 (vLLM 복귀 시에도 안전)
             - secretRef: { name: wiki-graph-llm, optional: true }
+          env:
+            # ejkim 전량 적재(13.8만 개체·141만 트리플)가 기본 힙(~1GB)을 넘어 OOM —
+            # 실측 2026-08-07 exit 139. 컨테이너 한도(4Gi) 안에서 힙을 넉넉히 준다.
+            - name: NODE_OPTIONS
+              value: --max-old-space-size=3072
           ports: [{ containerPort: 3000 }]
           readinessProbe:
             # 인증 게이트 밖의 전용 헬스 경로 — /api/ontology는 이제 401이라 못 쓴다
-            httpGet: { path: /api/health, port: 3000 }
+            # basePath(/graphwiki) 적용 후 경로. next.config.ts와 연동.
+            httpGet: { path: /graphwiki/api/health, port: 3000 }
             initialDelaySeconds: 10
             periodSeconds: 15
             timeoutSeconds: 10
           resources:
             requests: { cpu: 200m, memory: 512Mi }
-            limits: { cpu: "2", memory: 2Gi }
+            limits: { cpu: "2", memory: 4Gi }
 ---
 apiVersion: v1
 kind: Service
@@ -162,3 +168,92 @@ spec:
     - port: 3000
       targetPort: 3000
       nodePort: 31900
+---
+# 외부(비VPN) 접근 — 사내 ingress-nginx(LB 192.168.10.27, 공인 1.201.66.21 포워딩) 경유.
+# DNS에 wiki.fedaground.com A 레코드가 있어야 열린다 (posthog/admin 서브도메인과 같은 패턴).
+# TLS는 cert-manager letsencrypt-prod가 DNS 생기면 자동 발급한다.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: wiki-graph-ingress
+  namespace: jh-wiki-graph
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: 20m
+    # LLM 스트리밍(채팅·AI 작성)이 수 분짜리라 프록시 타임아웃을 늘린다
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "600"
+    nginx.ingress.kubernetes.io/proxy-buffering: "off"
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: wiki.fedaground.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: wiki-graph
+                port: { number: 3000 }
+  tls:
+    - hosts: [wiki.fedaground.com]
+      secretName: wiki-fedaground-tls
+---
+# 회사 표준 경로 방식 — cloud.fedaground.com/graphwiki (다른 팀 앱들과 같은 호스트).
+# 앱이 basePath(/graphwiki)로 빌드되므로 리라이트 없이 경로 그대로 넘긴다.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: wiki-graph-ingress-cloud
+  namespace: jh-wiki-graph
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: 20m
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "600"
+    nginx.ingress.kubernetes.io/proxy-buffering: "off"
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: cloud.fedaground.com
+      http:
+        paths:
+          - path: /graphwiki
+            pathType: Prefix
+            backend:
+              service:
+                name: wiki-graph
+                port: { number: 3000 }
+  tls:
+    - hosts: [cloud.fedaground.com]
+      secretName: wiki-graph-cloud-tls
+---
+# DNS 콘솔 없이 쓰는 IP 기반 외부 주소 — nip.io 공용 와일드카드 DNS가
+# wiki.1.201.66.21.nip.io 를 공인 IP로 풀어 준다. 인증서 없이 http만 (ssl-redirect 끔).
+# wiki.fedaground.com DNS가 생기면 이 인그레스는 지워도 된다.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: wiki-graph-ingress-ip
+  namespace: jh-wiki-graph
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+    nginx.ingress.kubernetes.io/proxy-body-size: 20m
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "600"
+    nginx.ingress.kubernetes.io/proxy-buffering: "off"
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: wiki.1.201.66.21.nip.io
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: wiki-graph
+                port: { number: 3000 }

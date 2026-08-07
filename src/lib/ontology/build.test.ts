@@ -91,3 +91,75 @@ describe('buildPages', () => {
     expect(new Set(dup.map((p) => p.slug)).size).toBe(2)
   })
 })
+
+describe('buildPages — 분신 병합', () => {
+  // ejkim 패턴: Email 노드(리터럴 없음) + 동명 BusinessCase(리터럴 보유), evidenceEmail로 연결
+  const shell: RawEntity = { uri: 'urn:mail', label: '발주 요청의 건', types: ['urn:ejkim:ontology:Email'] }
+  const host: RawEntity = { uri: 'urn:case', label: '발주 요청의 건', types: ['urn:ejkim:ontology:BusinessCase'] }
+  const third: RawEntity = { uri: 'urn:p', label: '거래처', types: [] }
+  const T = (s: string, p: string, o: string, literal = false): RawTriple => ({ s, p, o, literal })
+
+  it('동명·연결·한쪽만 리터럴이면 본체 문서 하나로 흡수한다', () => {
+    const pages = buildPages(src, [shell, host, third], [
+      T('urn:case', 'urn:ejkim:ontology:evidenceEmail', 'urn:mail'),
+      T('urn:case', 'urn:ejkim:ontology:caseType', '발주', true),
+      T('urn:p', 'urn:ejkim:ontology:sentTo', 'urn:mail'), // 제3노드 → 분신
+    ])
+    expect(pages).toHaveLength(2) // 본체 + 거래처
+    const merged = pages.find((p) => p.uri === 'urn:case')!
+    expect(pages.some((p) => p.uri === 'urn:mail')).toBe(false)
+    expect(merged.content).toContain('| caseType | 발주 |')
+    // 분신을 가리키던 제3노드 링크가 본체 slug로 온다
+    const p3 = pages.find((p) => p.uri === 'urn:p')!
+    expect(p3.outLinks).toEqual([merged.slug])
+    // 분신↔본체 연결이 자기 링크로 남지 않는다
+    expect(merged.outLinks).not.toContain(merged.slug)
+    // 분신의 클래스명이 본체 별칭에 남는다
+    expect(merged.aliases).toContain('Email')
+  })
+
+  it('동명이라도 연결이 없으면 병합하지 않는다', () => {
+    const pages = buildPages(src, [shell, host], [
+      T('urn:case', 'urn:ejkim:ontology:caseType', '발주', true),
+    ])
+    expect(pages).toHaveLength(2)
+  })
+
+  it('동명·연결이라도 양쪽 다 리터럴이 있으면 병합하지 않는다', () => {
+    const pages = buildPages(src, [shell, host], [
+      T('urn:case', 'urn:ejkim:ontology:evidenceEmail', 'urn:mail'),
+      T('urn:case', 'urn:ejkim:ontology:caseType', '발주', true),
+      T('urn:mail', 'urn:ejkim:ontology:subject', '제목', true),
+    ])
+    expect(pages).toHaveLength(2)
+  })
+
+  it('분신 여럿이 한 본체로 다 흡수된다', () => {
+    const shell2: RawEntity = { uri: 'urn:mail2', label: '발주 요청의 건', types: [] }
+    const pages = buildPages(src, [shell, shell2, host], [
+      T('urn:case', 'urn:ejkim:ontology:evidenceEmail', 'urn:mail'),
+      T('urn:case', 'urn:ejkim:ontology:evidenceEmail', 'urn:mail2'),
+      T('urn:case', 'urn:ejkim:ontology:caseType', '발주', true),
+    ])
+    expect(pages).toHaveLength(1)
+  })
+
+  it('리터럴의 NUL 바이트를 걷어낸다 — Postgres가 저장을 거부한다', () => {
+    const pages = buildPages(src, [host], [
+      T('urn:case', 'urn:ejkim:ontology:extractedText', '본문\u0000깨진\u0000바이트', true),
+    ])
+    expect(pages[0].content).not.toContain('\u0000')
+    expect(pages[0].content).toContain('본문깨진바이트')
+  })
+
+  it('동명 본체 후보가 둘이면 모호해서 병합하지 않는다', () => {
+    const host2: RawEntity = { uri: 'urn:case2', label: '발주 요청의 건', types: [] }
+    const pages = buildPages(src, [shell, host, host2], [
+      T('urn:case', 'urn:ejkim:ontology:evidenceEmail', 'urn:mail'),
+      T('urn:case2', 'urn:ejkim:ontology:evidenceEmail', 'urn:mail'),
+      T('urn:case', 'urn:ejkim:ontology:caseType', '발주', true),
+      T('urn:case2', 'urn:ejkim:ontology:caseType', '견적', true),
+    ])
+    expect(pages).toHaveLength(3)
+  })
+})

@@ -11,3 +11,6 @@ node_modules/
 tsconfig.tsbuildinfo
 *.tar
 *.tar.gz
+
+# 로컬 dev 서버 로그
+dev.log

@@ -55,6 +55,7 @@ export type WikiHit = {
  * 용어가 제목·요약·본문에 나오는 위키 문서를 찾는다. 그래프에 없는 내용이라도
  * 사람이 직접 쓴 문서가 근거가 되도록 — 온톨로지 적재본은 그래프 조회와 겹치므로
  * 사람(user)·에이전트(agent) 문서를 앞에 세운다.
+ * 단 AI 생성 문서(synthesis)는 제외 — 이전 생성물이 다음 생성의 근거가 되는 순환을 막는다.
  *
  * 발췌는 매칭 지점 앞뒤로 자른다. 문서 전문을 실으면 컨텍스트가 터진다.
  */
@@ -70,6 +71,7 @@ async function searchWiki(terms: string[]): Promise<WikiHit[]> {
                     600) AS snippet
       FROM "Page"
       WHERE "deletedAt" IS NULL
+        AND "pageType" <> 'synthesis'
         AND (position(${term} IN title) > 0
           OR position(${term} IN summary) > 0
           OR position(${term} IN content) > 0)
@@ -138,6 +140,48 @@ export async function extractTerms(request: string): Promise<string[]> {
     prompt: request,
   })
   return expandDateTerms(terms)
+}
+
+/**
+ * RAG 답변 본문에 제목이 그대로 등장하는 온톨로지 문서를 찾는다 — 근거 링크 후보.
+ * 모델이 파일명으로 검색을 잘 못 하므로(의역·오타) 서버가 실존 slug를 먼저 준다.
+ * title만 스캔이라 97k행 실측 수십 ms 수준. 채팅(ask_company_data)과 /ask가 같이 쓴다.
+ */
+export async function relatedPagesFor(answerText: string): Promise<{ slug: string; title: string }[]> {
+  if (!answerText.trim()) return []
+  // - 금액·날짜·수치 제목(200000원, 2024-07-03)은 제외 — 근거로 무의미하고 오링크를 만든다
+  //   (실측: "40,000원" 표시가 kakao/200000원으로 링크됨)
+  // - 제목의 [머리말]과 "…의 건" 꼬리를 벗긴 형태로도 매칭 — 답변이 흔히 줄여 쓴다
+  //   (실측: "잣수 원료자료 송부" ↔ 제목 "잣수 원료자료 송부의 건" 매칭 실패로 표 절반이 무링크)
+  // 동명 문서 처리 — 제목당 하나만 주되:
+  // - 같은 제목 중 **본문이 가장 긴** 문서를 고른다 (실측: 이메일 스레드 본체 대신
+  //   속성 3줄짜리 RoleEvidence 래퍼로 링크가 갔다)
+  // - 같은 제목이 4건 이상이면 통째로 제외 — "[RE][성진] 발주서 송부의 건"이 거래처마다
+  //   따로 있어 어느 것인지 특정이 안 되고, 아무거나 걸면 오링크다 (실측: 썬화인글로벌과
+  //   선일상사 행이 같은 발주서로 링크됐다)
+  // 꼬리 제거 후 8자 미만 일반구 제외 — "발주서 송부"는 어느 문서인지 특정이 안 된다.
+  return db.$queryRaw<{ slug: string; title: string }[]>`
+    SELECT slug, title FROM (
+      SELECT DISTINCT ON (title) slug, title,
+             count(*) OVER (PARTITION BY title) AS dup
+      FROM "Page"
+      WHERE "deletedAt" IS NULL AND "lastEditSource" = 'ontology'
+        AND char_length(title) >= 4
+        AND char_length(content) >= 100
+        AND title !~ '^[0-9][0-9,.[:space:]~:-]*(원|%|kg|g|ml|L|개|장|매|건|차)?$'
+        AND title !~ '^\\[[^\\]]*\\]$'
+        AND (
+          position(title IN ${answerText}) > 0
+          OR (
+            char_length(regexp_replace(regexp_replace(title, '^\\[[^\\]]*\\][[:space:]]*', ''), '의[[:space:]]건$', '')) >= 8
+            AND position(regexp_replace(regexp_replace(title, '^\\[[^\\]]*\\][[:space:]]*', ''), '의[[:space:]]건$', '') IN ${answerText}) > 0
+          )
+        )
+      ORDER BY title, char_length(content) DESC
+    ) t
+    WHERE dup <= 3
+    ORDER BY char_length(title) DESC
+    LIMIT 30`
 }
 
 /**
@@ -324,6 +368,9 @@ export async function retrieve(request: string, terms: string[]): Promise<Retrie
   const links = await resolveLinks([...evidence, ...graph.textHits])
   // 위키 히트는 slug를 이미 아니 그대로 링크에 얹는다.
   for (const h of wiki) if (!links.has(h.title)) links.set(h.title, h.slug)
+  // API 답변 본문에 제목이 등장하는 온톨로지 문서 — 본문 항목의 근거 링크 후보.
+  const related = await relatedPagesFor(sourceAnswers.map((a) => a.answer).join('\n'))
+  for (const p of related) if (!links.has(p.title)) links.set(p.title, p.slug)
   return { graph, wiki, evidence, links, sourceAnswers }
 }
 
@@ -347,6 +394,11 @@ function writeSystem(graph: GraphResult, extra: string[] = []): string {
     '  준 그대로 [[slug|제목]] 형태로 링크한다.',
     '- [[ ]] 링크는 근거에 [[…]] 형태로 준 것을 그대로 옮길 때만 쓴다. 그래프 개체나',
     '  파일명을 보고 링크를 새로 만들어내지 마라 — 없는 문서로 가는 죽은 링크가 된다.',
+    '- **본문 항목에도 근거를 링크하라**: 업무·거래·문서를 언급하는 문장이나 표 칸마다,',
+    '  "위키에 문서가 있는 것" 목록에 해당 근거 문서가 있으면 그 자리에 [[slug|짧은 표시명]]으로',
+    '  링크한다. 표시명은 4~15자로 짧게 새로 짓고, slug는 준 것을 그대로 복사한다.',
+    '  이름이 맞는 항목은 **빠짐없이** 링크하되, 링크와 표시명이 가리키는 대상이 같아야 한다 —',
+    '  내용만 비슷한 다른 문서나 금액·날짜 문서에 걸지 마라. 목록에 없는 항목은 링크 없이 둔다.',
     '',
     '- 아래 근거에 없는 내용은 절대 쓰지 마라. 모르는 것은 "확인되지 않음"이라고 적는다.',
     '- **본문에는 출처를 적지 마라.** [ejkim], [승훈 온톨로지], (출처: …) 같은 표기를',
@@ -360,6 +412,8 @@ function writeSystem(graph: GraphResult, extra: string[] = []): string {
     '  실패는 "그런 사실이 없다"가 아니라 "확인하지 못했다"이다. 둘을 섞지 마라.',
     '- 서로 다른 그래프의 내용이 어긋나면 어느 쪽이 무엇이라 했는지 참고 절에 적어라.',
     '- 마크다운으로 쓰고, 표가 맞으면 표를 쓴다.',
+    '- 날짜가 있는 내용은 **하루 단위로 행을 나눠** 날짜 오름차순으로 정리한다.',
+    '  근거에 개별 날짜가 있는데 "6월 15~18일"처럼 기간으로 뭉개지 마라.',
     failed.length > 0 ? `- 이번에 조회하지 못한 그래프: ${failed.map((s) => s.name).join(', ')}` : '',
     ...extra,
   ]
@@ -445,39 +499,44 @@ export function stripEmailRefs(content: string): string {
 }
 
 /**
- * 생성된 초안의 [[링크]]를 실존 문서와 대조해 정리한다.
+ * LLM이 쓴 텍스트의 [[링크]]를 실존 문서와 대조해 정리한다.
  * 없는 문서 링크는 평문으로, 잘린 대괄호는 제거 — 프롬프트로는 못 막는다(실측).
- * LLM이 [[파일명]]처럼 제목으로 태깅한 링크는 제목 조회로 실제 slug를 찾아 잇는다
+ * [[파일명]]처럼 제목으로 태깅한 링크는 제목 조회로 실제 slug를 찾아 잇는다
  * (소스 접두사 seunghoon/… 를 LLM이 모른다 — 실측: 바코드·통장 파일명 전부 평문 강등됐다).
+ * /ask 초안과 채팅 답변 저장이 같이 쓴다.
  */
-export async function sanitizeDraftLinks(draft: Draft): Promise<Draft> {
-  const targets = parseOutLinks(draft.content)
+export async function sanitizeLinkedText(text: string): Promise<string> {
+  const targets = parseOutLinks(text)
 
   // slug 매칭 실패 시 제목으로 찾을 후보 — 링크 안의 원문(slug 자리·표시명)
   const rawTexts = new Set<string>()
-  for (const m of draft.content.matchAll(WIKI_LINK_RE)) {
+  for (const m of text.matchAll(WIKI_LINK_RE)) {
     const inner = m[1]
     const pipe = inner.indexOf('|')
     rawTexts.add((pipe >= 0 ? inner.slice(0, pipe) : inner).trim())
     if (pipe >= 0) rawTexts.add(inner.slice(pipe + 1).trim())
   }
 
-  const found =
-    targets.length || rawTexts.size
-      ? await db.page.findMany({
-          where: {
-            deletedAt: null,
-            OR: [{ slug: { in: targets } }, { title: { in: [...rawTexts] } }],
-          },
-          select: { slug: true, title: true },
-        })
-      : []
+  if (!targets.length && !rawTexts.size) return text
+
+  const found = await db.page.findMany({
+    where: {
+      deletedAt: null,
+      OR: [{ slug: { in: targets } }, { title: { in: [...rawTexts] } }],
+    },
+    select: { slug: true, title: true },
+  })
 
   const valid = new Set(found.map((f) => f.slug))
   const byTitle = new Map<string, string>()
   for (const f of found) if (!byTitle.has(f.title)) byTitle.set(f.title, f.slug)
 
-  return { ...draft, content: stripEmailRefs(sanitizeWikiLinks(draft.content, valid, byTitle)) }
+  return sanitizeWikiLinks(text, valid, byTitle)
+}
+
+/** 초안 버전 — 링크 정리에 더해 참고 절의 이메일 항목을 걷어낸다. */
+export async function sanitizeDraftLinks(draft: Draft): Promise<Draft> {
+  return { ...draft, content: stripEmailRefs(await sanitizeLinkedText(draft.content)) }
 }
 
 /** 4단계 — 스트림을 끝까지 모아 문서 하나로 만든다. */

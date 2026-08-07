@@ -33,6 +33,17 @@ async function query(source: OntologySource, sparql: string): Promise<Binding[]>
   return body.results.bindings
 }
 
+/** 표시명 있는 개체 총수 — 전량 적재(prune 안전장치) 판정에 쓴다. */
+export async function fetchEntityCount(source: OntologySource): Promise<number> {
+  const rows = await query(
+    source,
+    `SELECT (COUNT(DISTINCT ?s) AS ?n) WHERE {
+       ${anyGraph(`?s <${source.labelPredicate}> ?label`)}
+     }`,
+  )
+  return Number(rows[0]?.n?.value ?? 0)
+}
+
 /** 표시명이 있는 개체와 그 클래스. 표시명 없는 노드는 문서로 만들지 않는다. */
 export async function fetchEntities(source: OntologySource, limit: number): Promise<RawEntity[]> {
   const rows = await query(

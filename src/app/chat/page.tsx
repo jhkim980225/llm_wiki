@@ -1,14 +1,16 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { MessageSquare, Send, Plus, Trash2 } from 'lucide-react'
+import { MessageSquare, Send, Plus, Trash2, Menu } from 'lucide-react'
+import { Markdown } from '@/components/wiki/Markdown'
+import { streamChat } from '@/lib/chat/stream'
 
 type Msg = { role: 'user' | 'assistant'; content: string }
 type Conv = { id: string; title: string; updatedAt: string }
 
 const EXAMPLES = [
-  '전산회계 2급 시험 범위를 요약해줘',
-  '부가가치세 신고 절차를 단계별로 알려줘',
+  '회사 구성원에 대해 알려줘',
+  '거래처에 보낼 발주 확인 메일 초안을 써줘',
   '이 워크스페이스로 뭘 할 수 있어?',
 ]
 
@@ -18,6 +20,7 @@ export default function ChatPage() {
   const [messages, setMessages] = useState<Msg[]>([])
   const [input, setInput] = useState('')
   const [busy, setBusy] = useState(false)
+  const [convOpen, setConvOpen] = useState(false) // 모바일 대화목록 드로어
   const scrollRef = useRef<HTMLDivElement>(null)
 
   const scrollDown = () =>
@@ -39,6 +42,7 @@ export default function ChatPage() {
     setConvId(null)
     setMessages([])
     setInput('')
+    setConvOpen(false)
   }
 
   const openConv = async (id: string) => {
@@ -47,6 +51,7 @@ export default function ChatPage() {
     if (!res.ok) return
     setConvId(id)
     setMessages((await res.json()).messages ?? [])
+    setConvOpen(false)
     scrollDown()
   }
 
@@ -71,33 +76,18 @@ export default function ChatPage() {
     scrollDown()
 
     try {
-      const res = await fetch('/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: history, conversationId: convId }),
-      })
-      if (!res.ok || !res.body) {
-        const err = await res.json().catch(() => ({}))
-        setMessages((m) => patchLast(m, err.error ?? `요청 실패 (HTTP ${res.status})`))
-        return
-      }
-      const newId = res.headers.get('X-Conversation-Id')
-      if (newId && newId !== convId) setConvId(newId)
-
-      const reader = res.body.getReader()
-      const decoder = new TextDecoder()
-      let acc = ''
-      for (;;) {
-        const { done, value } = await reader.read()
-        if (done) break
-        acc += decoder.decode(value, { stream: true })
-        setMessages((m) => patchLast(m, acc))
-        scrollDown()
-      }
-      if (!acc) setMessages((m) => patchLast(m, '(빈 응답)'))
+      const { text, conversationId } = await streamChat(
+        { messages: history, conversationId: convId },
+        (acc) => {
+          setMessages((m) => patchLast(m, acc))
+          scrollDown()
+        },
+      )
+      if (conversationId && conversationId !== convId) setConvId(conversationId)
+      if (!text) setMessages((m) => patchLast(m, '(빈 응답)'))
       loadConvs() // 목록 최신화(새 대화 제목·정렬)
-    } catch {
-      setMessages((m) => patchLast(m, '서버에 연결할 수 없습니다.'))
+    } catch (e) {
+      setMessages((m) => patchLast(m, (e as Error).message || '서버에 연결할 수 없습니다.'))
     } finally {
       setBusy(false)
       scrollDown()
@@ -107,44 +97,34 @@ export default function ChatPage() {
   return (
     <>
       <div className="tabbar">
+        <button
+          className="chat-convs-toggle"
+          aria-label="대화 목록 열기"
+          onClick={() => setConvOpen((v) => !v)}
+        >
+          <Menu size={16} aria-hidden />
+        </button>
         <div className="tab on">
           <MessageSquare size={14} aria-hidden />
           <span className="name">채팅</span>
         </div>
-        <span className="center">위키를 건드리지 않는 일반 대화입니다</span>
+        <span className="center">사내 데이터를 검색해 답합니다 — 위키 문서는 고치지 않아요</span>
       </div>
 
-      <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
+      <div style={{ display: 'flex', flex: 1, minHeight: 0, position: 'relative' }}>
+        {/* 모바일 드로어 백드롭 */}
+        <div
+          className={convOpen ? 'chat-backdrop open' : 'chat-backdrop'}
+          onClick={() => setConvOpen(false)}
+          aria-hidden
+        />
+
         {/* 대화 목록 */}
-        <aside
-          style={{
-            width: 232,
-            flexShrink: 0,
-            borderRight: '1px solid var(--line)',
-            display: 'flex',
-            flexDirection: 'column',
-            minHeight: 0,
-          }}
-        >
-          <button
-            onClick={newChat}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              margin: 12,
-              padding: '8px 10px',
-              borderRadius: 8,
-              border: '1px solid var(--line)',
-              background: 'var(--panel)',
-              color: 'var(--text)',
-              fontSize: 13,
-              cursor: 'pointer',
-            }}
-          >
+        <aside className={convOpen ? 'chat-convs open' : 'chat-convs'}>
+          <button className="chat-new" onClick={newChat}>
             <Plus size={14} aria-hidden /> 새 대화
           </button>
-          <div style={{ overflowY: 'auto', minHeight: 0, padding: '0 8px 8px' }}>
+          <div className="conv-list">
             {convs.length === 0 && (
               <p className="meta" style={{ padding: '4px 8px' }}>
                 저장된 대화가 없습니다.
@@ -155,29 +135,14 @@ export default function ChatPage() {
                 key={c.id}
                 onClick={() => openConv(c.id)}
                 className={c.id === convId ? 'conv-item on' : 'conv-item'}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 6,
-                  padding: '8px 10px',
-                  borderRadius: 8,
-                  cursor: 'pointer',
-                  background: c.id === convId ? 'var(--hover)' : 'transparent',
-                  fontSize: 13,
-                  color: 'var(--text-body)',
-                }}
               >
-                <MessageSquare size={13} aria-hidden style={{ flexShrink: 0, opacity: 0.6 }} />
-                <span
-                  style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
-                >
-                  {c.title}
-                </span>
+                <MessageSquare size={13} aria-hidden className="ic" />
+                <span className="t">{c.title}</span>
                 <button
                   onClick={(e) => removeConv(c.id, e)}
                   aria-label="대화 삭제"
                   title="삭제"
-                  style={{ background: 'none', border: 'none', color: 'var(--text-faint)', cursor: 'pointer', padding: 2 }}
+                  className="del"
                 >
                   <Trash2 size={13} aria-hidden />
                 </button>
@@ -215,11 +180,12 @@ export default function ChatPage() {
                     <span className="ai-icon">
                       <MessageSquare size={15} aria-hidden />
                     </span>
-                    <div className="body" style={{ whiteSpace: 'pre-wrap' }}>
-                      {m.content ||
-                        (busy && i === messages.length - 1 ? (
-                          <span className="meta">생각하는 중…</span>
-                        ) : null)}
+                    <div className="body">
+                      {m.content ? (
+                        <Markdown content={m.content} />
+                      ) : busy && i === messages.length - 1 ? (
+                        <span className="meta">생각하는 중…</span>
+                      ) : null}
                     </div>
                   </div>
                 ),

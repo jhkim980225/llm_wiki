@@ -4,7 +4,8 @@ import { importOntology } from '@/lib/ontology/import'
 import { db } from '@/lib/db'
 import { IMPORT_SOURCE } from '@/lib/ontology/import'
 
-export const maxDuration = 300
+// ejkim 전량(4만+ 개체, 트리플 38만)이 220초 실측 — 여유를 둔다.
+export const maxDuration = 600
 
 export async function GET() {
   // 소스별 페이지 수 = 그 소스의 최상위 폴더(name === source.name) 서브트리 안 적재 페이지 수.
@@ -59,7 +60,9 @@ export async function POST(req: Request) {
   }
 
   try {
-    return NextResponse.json(await importOntology(source, { limit: body?.limit }))
+    return NextResponse.json(
+      await importOntology(source, { limit: body?.limit, prune: body?.prune }),
+    )
   } catch (e) {
     // 소스가 죽어도 위키는 그대로다. 실패 사유만 돌려준다.
     return NextResponse.json({ error: (e as Error).message, source: source.id }, { status: 502 })

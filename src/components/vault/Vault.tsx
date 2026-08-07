@@ -37,8 +37,11 @@ export function Vault({ children }: { children: ReactNode }) {
   const [settings, setSettings] = useState(false)
 
   // 접힘 상태는 localStorage에 기억한다. SSR과의 hydration 불일치를 피해 effect에서 읽는다.
+  // 모바일(≤1023px)에선 트리가 콘텐츠 위 오버레이라 기본 접힘으로 둔다 — 안 그러면
+  // 페이지를 열 때마다 트리가 화면을 덮는다. 데스크톱 저장값과 무관하게 접고 시작한다.
   useEffect(() => {
-    setCollapsed(localStorage.getItem('sidebar-collapsed') === '1')
+    const narrow = window.matchMedia('(max-width: 1023px)').matches
+    setCollapsed(narrow ? true : localStorage.getItem('sidebar-collapsed') === '1')
   }, [])
   const toggleCollapsed = () => {
     setCollapsed((c) => {

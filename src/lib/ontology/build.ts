@@ -43,10 +43,59 @@ export function buildPages(
   entities: RawEntity[],
   triples: RawTriple[],
 ): BuiltPage[] {
+  // 0) 분신 병합 판정 — ejkim이 메일 1건을 여러 노드로 쪼갠다(Email=라벨만,
+  //    BusinessCase=본문 보유, 서로 연결). 라벨이 같고 서로 직접 연결돼 있으며
+  //    한쪽만 리터럴이 없으면, 리터럴 없는 분신을 본체 문서로 흡수한다.
+  //    호스트 후보가 여럿이면 모호하므로 병합하지 않는다 — 동명 251건짜리
+  //    "[성진] 발주서 송부의 건"류는 서로 미연결이라 애초에 안 걸린다.
+  const hasLiteral = new Set<string>()
+  const adjacent = new Map<string, Set<string>>()
+  const link = (a: string, b: string) => {
+    let set = adjacent.get(a)
+    if (!set) adjacent.set(a, (set = new Set()))
+    set.add(b)
+  }
+  for (const t of triples) {
+    if (t.literal) hasLiteral.add(t.s)
+    else {
+      link(t.s, t.o)
+      link(t.o, t.s)
+    }
+  }
+
+  const byLabel = new Map<string, RawEntity[]>()
+  for (const e of entities) {
+    if (!e.label) continue
+    const list = byLabel.get(e.label) ?? []
+    list.push(e)
+    byLabel.set(e.label, list)
+  }
+
+  const mergedInto = new Map<string, string>()
+  const extraTypes = new Map<string, string[]>()
+  for (const group of byLabel.values()) {
+    if (group.length < 2) continue
+    for (const shell of group) {
+      if (hasLiteral.has(shell.uri)) continue
+      const near = adjacent.get(shell.uri)
+      const hosts = group.filter((h) => h !== shell && hasLiteral.has(h.uri) && near?.has(h.uri))
+      if (hosts.length !== 1) continue
+      mergedInto.set(shell.uri, hosts[0].uri)
+      // 분신의 클래스명(Email 등)을 본체 aliases에 남겨 검색이 계속 걸리게 한다.
+      extraTypes.set(hosts[0].uri, [...(extraTypes.get(hosts[0].uri) ?? []), ...shell.types])
+    }
+  }
+  const resolve = (uri: string) => mergedInto.get(uri) ?? uri
+
   // 1) slug 배정 — 라벨이 같은 개체는 뒤에 번호를 붙여 갈라놓는다.
+  //    Fuseki 결과 순서가 비결정적이라 uri로 정렬해 번호 배정을 결정적으로 만든다
+  //    (안 하면 재적재마다 -2가 다른 개체로 옮겨 붙어 prune이 문서를 갈아치운다).
+  //    병합된 분신은 slug를 소비하지 않고 본체 slug를 같이 쓴다.
+  const ordered = [...entities].sort((a, b) => (a.uri < b.uri ? -1 : a.uri > b.uri ? 1 : 0))
   const slugOf = new Map<string, string>()
   const used = new Set<string>()
-  for (const e of entities) {
+  for (const e of ordered) {
+    if (mergedInto.has(e.uri)) continue
     let slug = entitySlug(source, e.label, e.uri)
     if (used.has(slug)) {
       let n = 2
@@ -56,6 +105,7 @@ export function buildPages(
     used.add(slug)
     slugOf.set(e.uri, slug)
   }
+  for (const [shell, host] of mergedInto) slugOf.set(shell, slugOf.get(host)!)
 
   const labelOf = new Map(entities.map((e) => [e.uri, e.label]))
 
@@ -82,26 +132,31 @@ export function buildPages(
   }
 
   for (const t of triples) {
-    if (!slugOf.has(t.s)) continue
+    // 병합된 분신의 트리플은 본체 것으로 다룬다.
+    const s = resolve(t.s)
+    if (!slugOf.has(s)) continue
     const rel = localName(t.p)
 
     if (t.literal) {
-      take(t.s).attrs.push([rel, t.o])
+      take(s).attrs.push([rel, t.o])
       continue
     }
+    const o = resolve(t.o)
+    // 분신↔본체를 잇던 관계는 병합 후 자기 자신을 가리킨다 — 링크로 만들지 않는다.
+    if (s === o) continue
     // 이번 묶음 밖을 가리키는 관계는 버린다. 죽은 링크 대량 생성 방지.
-    const targetSlug = slugOf.get(t.o)
+    const targetSlug = slugOf.get(o)
     if (!targetSlug) continue
 
-    push(take(t.s).out, rel, { slug: targetSlug, label: labelOf.get(t.o) || t.o })
-    push(take(t.o).in, rel, { slug: slugOf.get(t.s)!, label: labelOf.get(t.s) || t.s })
+    push(take(s).out, rel, { slug: targetSlug, label: labelOf.get(o) || o })
+    push(take(o).in, rel, { slug: slugOf.get(s)!, label: labelOf.get(s) || s })
   }
 
-  // 3) 마크다운으로 굽는다.
-  return entities.map((e) => {
+  // 3) 마크다운으로 굽는다. 병합된 분신은 페이지를 만들지 않는다.
+  return entities.filter((e) => !mergedInto.has(e.uri)).map((e) => {
     const slug = slugOf.get(e.uri)!
     const b = bucket.get(e.uri) ?? { out: new Map(), in: new Map(), attrs: [] }
-    const typeNames = e.types.map(localName)
+    const typeNames = [...new Set([...e.types, ...(extraTypes.get(e.uri) ?? [])])].map(localName)
     const lines: string[] = []
     const outLinks: string[] = []
 
@@ -134,12 +189,14 @@ export function buildPages(
     return {
       uri: e.uri,
       slug,
-      title: e.label || slug,
+      // NUL(0x00)이 든 리터럴이 실재한다(ejkim 첨부 추출 본문) — Postgres text가
+      // 거부해 적재가 통째로 죽으므로 여기서 걷어낸다.
+      title: (e.label || slug).replace(/\u0000/g, ''),
       summary: typeNames.join(' · '),
       // 온톨로지 개체는 전부 entity로 둔다. 문서 타입은 위키 쪽 개념이다.
       pageType: 'entity',
       aliases: typeNames,
-      content: lines.join('\n').trimEnd() + '\n',
+      content: (lines.join('\n').trimEnd() + '\n').replace(/\u0000/g, ''),
       outLinks: [...new Set(outLinks)],
     }
   })

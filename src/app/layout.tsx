@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import { JetBrains_Mono } from 'next/font/google'
 import { Vault } from '@/components/vault/Vault'
 import { Toaster } from '@/components/ui/Toaster'
+import { BasePathFetch } from '@/components/BasePathFetch'
 import './globals.css'
 
 /* 본문 폰트(Pretendard Variable)는 globals.css가 npm 패키지 CSS로 불러온다.
@@ -19,6 +20,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="ko" className={mono.variable}>
       <body>
+        <BasePathFetch />
         <Vault>{children}</Vault>
         <Toaster />
       </body>

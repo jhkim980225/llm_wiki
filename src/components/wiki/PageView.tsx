@@ -1,10 +1,8 @@
 'use client'
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { marked } from 'marked'
-import DOMPurify from 'dompurify'
 import { MoreHorizontal } from 'lucide-react'
-import { wikiLinksToHtml } from '@/lib/wiki/render'
+import { Markdown, interceptLinks } from '@/components/wiki/Markdown'
 import { Menu, anchorOf, type Anchor } from '@/components/vault/Dialog'
 import { useVaultAction } from '@/components/vault/actions'
 import { normalizeSlug } from '@/lib/wiki/slug'
@@ -33,7 +31,6 @@ const EDITOR: Record<string, string> = {
 }
 
 export function PageView({ page, onEdit }: { page: PageData; onEdit: () => void }) {
-  const [html, setHtml] = useState('')
   const [menu, setMenu] = useState<Anchor | null>(null)
 
   const router = useRouter()
@@ -49,13 +46,17 @@ export function PageView({ page, onEdit }: { page: PageData; onEdit: () => void 
     [page.outLinks, page.deadLinks],
   )
 
+  // Delete 키로 휴지통 이동(확인 대화상자 경유). 검색창 등 입력 중에는 무시한다.
   useEffect(() => {
-    // 위키링크를 앵커로 바꾼 뒤 마크다운을 파싱하고, 마지막에 반드시 정화한다.
-    const withLinks = wikiLinksToHtml(page.content, existing)
-    Promise.resolve(marked.parse(withLinks)).then((parsed) => {
-      setHtml(DOMPurify.sanitize(parsed, { ADD_ATTR: ['class'] }))
-    })
-  }, [page.content, existing])
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Delete') return
+      if ((e.target as HTMLElement).closest('input, textarea, select, [contenteditable]')) return
+      start({ kind: 'page-delete', slug: page.slug, title: page.title })
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page.slug, page.title])
 
   const updated = new Date(page.updatedAt).toISOString().slice(0, 10)
 
@@ -130,8 +131,8 @@ export function PageView({ page, onEdit }: { page: PageData; onEdit: () => void 
       )}
 
       {/* 본문 링크는 dangerouslySetInnerHTML로 뿌려서 next/link가 될 수 없다.
-          클릭을 위에서 가로채 라우터로 넘긴다 — 새로고침 없이 문서를 오간다. */}
-      <article className="prose" onClick={interceptLinks(router)} dangerouslySetInnerHTML={{ __html: html }} />
+          Markdown 안의 클릭 인터셉터가 라우터로 넘긴다 — 새로고침 없이 문서를 오간다. */}
+      <Markdown content={page.content} existingSlugs={existing} />
 
       <section className="backlinks" onClick={interceptLinks(router)}>
         <h4>이 문서를 가리키는 문서 {page.backlinks.length}</h4>
@@ -149,20 +150,4 @@ export function PageView({ page, onEdit }: { page: PageData; onEdit: () => void 
       </section>
     </div>
   )
-}
-
-/**
- * 내부 문서 링크 클릭을 라우터로 넘긴다.
- * 새 탭·수정키·외부 주소는 브라우저에 그대로 맡긴다.
- */
-function interceptLinks(router: ReturnType<typeof useRouter>) {
-  return (e: React.MouseEvent<HTMLElement>) => {
-    const a = (e.target as HTMLElement).closest('a')
-    if (!a || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return
-    if (a.target === '_blank') return
-    const href = a.getAttribute('href') ?? ''
-    if (!href.startsWith('/')) return
-    e.preventDefault()
-    router.push(href)
-  }
 }

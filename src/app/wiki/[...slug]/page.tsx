@@ -1,10 +1,12 @@
 'use client'
 import { use, useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { MessageSquareText } from 'lucide-react'
 import { DocumentTab } from '@/components/ui'
 import { PageView, type PageData } from '@/components/wiki/PageView'
 import { PageEditor } from '@/components/wiki/PageEditor'
 import { RevisionDrawer } from '@/components/wiki/RevisionDrawer'
+import { DocChatPanel } from '@/components/wiki/DocChatPanel'
 import { UNTITLED } from '@/components/vault/actions'
 
 type Tab = { slug: string; title: string }
@@ -36,6 +38,7 @@ export default function WikiPage({ params }: { params: Promise<{ slug: string[] 
   const [missing, setMissing] = useState(false)
   const [editing, setEditing] = useState(false)
   const [showRevisions, setShowRevisions] = useState(false)
+  const [chatOpen, setChatOpen] = useState(false)
   const [draft, setDraft] = useState({ title: slug.split('/').pop() ?? slug, content: '' })
 
   const load = useCallback(async () => {
@@ -111,6 +114,15 @@ export default function WikiPage({ params }: { params: Promise<{ slug: string[] 
           ))}
         </span>
         <span className="side">
+          {page && !editing && (
+            <button
+              className={chatOpen ? 'quiet on' : 'quiet'}
+              onClick={() => setChatOpen((v) => !v)}
+              title="문서에 질문"
+            >
+              <MessageSquareText size={13} aria-hidden /> 질문
+            </button>
+          )}
           {page && (
             <button className="quiet" onClick={() => setShowRevisions(true)}>
               이력
@@ -119,7 +131,8 @@ export default function WikiPage({ params }: { params: Promise<{ slug: string[] 
         </span>
       </div>
 
-      <div className={`doc${editing && page ? ' editing' : ''}`} style={{ position: 'relative' }}>
+      <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
+      <div className={`doc${editing && page ? ' editing' : ''}`} style={{ position: 'relative', minWidth: 0 }}>
         {missing && (
           <div className="doc-inner">
             <h1 style={{ fontSize: '1.6rem' }}>
@@ -169,6 +182,12 @@ export default function WikiPage({ params }: { params: Promise<{ slug: string[] 
             <span>링크 {page.outLinks.length}</span>
           </div>
         )}
+      </div>
+
+      {/* key={slug} — 문서를 옮기면 대화가 통째로 초기화된다 */}
+      {chatOpen && page && !editing && (
+        <DocChatPanel key={slug} slug={slug} onClose={() => setChatOpen(false)} />
+      )}
       </div>
 
       {showRevisions && page && (
