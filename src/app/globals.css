@@ -3564,6 +3564,18 @@ a.card:hover {
   color: var(--text-dim);
 }
 
+/* 휴가신청 폴더 문서 — 기간 매일 표시 */
+.cal-item.vacation {
+  background: rgb(234 179 8 / 14%);
+  color: #d9b64a;
+}
+
+/* 주간업무 폴더 문서 — 시작일에만 표시 */
+.cal-item.weekly {
+  background: rgb(124 156 196 / 14%);
+  color: #7c9cc4;
+}
+
 /* 출처 요약 팝오버 (Markdown preview) */
 .link-preview {
   max-width: 520px;
