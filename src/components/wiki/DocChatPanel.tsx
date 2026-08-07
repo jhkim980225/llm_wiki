@@ -74,7 +74,7 @@ export function DocChatPanel({ slug, onClose }: { slug: string; onClose: () => v
             <div key={i} className="msg-ai">
               <div className="body">
                 {m.content ? (
-                  <Markdown content={m.content} />
+                  <Markdown content={m.content} preview />
                 ) : busy && i === messages.length - 1 ? (
                   <span className="meta">생각하는 중…</span>
                 ) : null}

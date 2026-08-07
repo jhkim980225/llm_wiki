@@ -5,6 +5,7 @@ import { requireSession } from '@/lib/auth/guard'
 import { wikiTools, budgetContent } from '@/lib/agent/tools'
 import { askSourceRag, hasRagApi } from '@/lib/rag/source-rag'
 import { sanitizeLinkedText, relatedPagesFor } from '@/lib/rag/compose'
+import { runFlow } from '@/lib/flow/run'
 import { QUERY_SOURCES } from '@/lib/ontology/source'
 import { db } from '@/lib/db'
 
@@ -69,6 +70,35 @@ function makeChatTools() {
         return p
       },
     }),
+    create_document_from_template: tool({
+      description:
+        '템플릿(양식) 문서를 참조해 그 양식대로 새 위키 문서를 작성하고 지정 폴더에 저장한다. ' +
+        '"~양식/템플릿을 따라 작성해서 ~폴더에 저장해줘" 류의 지시에 쓴다. ' +
+        '작성에 2~4분 걸리며, 완료되면 저장된 문서 slug를 준다.',
+      inputSchema: z.object({
+        template: z.string().describe('템플릿 문서의 제목 또는 slug (예: "주간업무내역 양식")'),
+        instruction: z.string().describe('무엇을 작성할지 지시 (사용자 요청을 그대로)'),
+        targetFolderName: z.string().optional().describe('저장할 폴더 이름 (예: "주간업무")'),
+      }),
+      execute: async ({ template, instruction, targetFolderName }) => {
+        // 제목으로도 slug로도 찾는다 — 사용자는 보통 제목으로 말한다.
+        const page = await db.page.findFirst({
+          where: { deletedAt: null, OR: [{ slug: template }, { title: template }] },
+          select: { slug: true },
+        })
+        if (!page) return { error: `템플릿 문서를 찾지 못했습니다: ${template}` }
+        try {
+          const result = await runFlow({
+            templateSlug: page.slug,
+            instruction,
+            targetFolderName: targetFolderName ?? null,
+          })
+          return { ...result, saved: true }
+        } catch (e) {
+          return { error: (e as Error).message }
+        }
+      },
+    }),
   }
 }
 
@@ -78,8 +108,8 @@ const titleFrom = (text: string) => {
 }
 
 /**
- * 일반 채팅. 위키를 고치지 않는 대화 — 도구는 읽기 전용(위키 검색·열람 + 소스 RAG API)만 준다.
- * 쓰기 도구는 /ask(문서 작성) 경로에만 있다.
+ * 일반 채팅. 도구는 읽기 전용(위키 검색·열람 + 소스 RAG API)과
+ * 템플릿 기반 문서 생성(create_document_from_template — 새 문서 저장만, 기존 문서 수정 없음).
  * 현재 붙어 있는 LLM(env의 LLM_MODEL, 지금은 gpt-5.6-luna)을 그대로 쓴다.
  *
  * body: { messages: {role,content}[], conversationId?: string, docSlug?: string, ephemeral?: boolean }
@@ -170,6 +200,8 @@ export async function POST(req: Request) {
       '  만들어내지 마라 — 죽은 링크가 된다. 근거 문서를 못 찾은 항목은 링크 없이 둔다.\n' +
       '- relatedPages에 답변 속 문서·거래처·개체와 이름이 맞는 항목이 있으면 **빠짐없이** 그 자리에\n' +
       '  링크한다. 링크와 표시명이 가리키는 대상이 같아야 한다 — 다른 금액·날짜 문서에 걸지 마라.\n' +
+      '- "~양식(템플릿)대로 작성해서 ~폴더에 저장해줘"라는 지시는 create_document_from_template를\n' +
+      '  쓴다. 완료되면 결과를 [[slug|제목]] 링크로 알려준다. 시간이 걸린다고 먼저 말하지 말고 바로 실행하라.\n' +
       '- 도구가 준 근거에 없는 사내 사실은 지어내지 마라. 조회 실패는 "확인하지 못했다"고 말한다.\n' +
       '- 일반 지식·글쓰기 요청은 도구 없이 바로 답한다.' +
       docContext,
@@ -179,9 +211,12 @@ export async function POST(req: Request) {
     providerOptions: llmProviderOptions(),
     onFinish: async ({ text }) => {
       if (!conversationId || !text) return
-      // 지어낸 [[링크]]는 저장 전에 평문으로 강등한다 — 재열람 화면이 항상 깨끗하게.
+      // 지어낸 [[링크]]는 평문 강등, 놓친 개체명은 표면형 매칭으로 보강해 저장한다.
+      const cleaned = await sanitizeLinkedText(text)
+      const { proposeLinks } = await import('@/lib/pages/linkify')
+      const enriched = await proposeLinks('', cleaned)
       await db.chatMessage.create({
-        data: { conversationId, role: 'assistant', content: await sanitizeLinkedText(text) },
+        data: { conversationId, role: 'assistant', content: enriched.content },
       })
       await db.chatConversation.update({
         where: { id: conversationId },

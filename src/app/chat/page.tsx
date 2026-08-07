@@ -108,7 +108,7 @@ export default function ChatPage() {
           <MessageSquare size={14} aria-hidden />
           <span className="name">채팅</span>
         </div>
-        <span className="center">사내 데이터를 검색해 답합니다 — 위키 문서는 고치지 않아요</span>
+        <span className="center">사내 데이터 검색·템플릿 문서 작성까지 — 기존 문서는 고치지 않아요</span>
       </div>
 
       <div style={{ display: 'flex', flex: 1, minHeight: 0, position: 'relative' }}>
@@ -182,7 +182,7 @@ export default function ChatPage() {
                     </span>
                     <div className="body">
                       {m.content ? (
-                        <Markdown content={m.content} />
+                        <Markdown content={m.content} preview />
                       ) : busy && i === messages.length - 1 ? (
                         <span className="meta">생각하는 중…</span>
                       ) : null}

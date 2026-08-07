@@ -2,7 +2,7 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import {
-  CalendarRange,
+  CalendarDays,
   ChevronsRight,
   Home,
   Menu,
@@ -12,6 +12,7 @@ import {
   Sparkles,
   Trash2,
   Waypoints,
+  Workflow,
 } from 'lucide-react'
 import { SidebarItem } from '@/components/ui'
 import { FileTree } from './FileTree'
@@ -106,7 +107,9 @@ export function Vault({ children }: { children: ReactNode }) {
         />
         <SidebarItem icon={<Sparkles size={IC} aria-hidden />} label="AI 작성" href="/ask" on={pathname === '/ask'} />
         <SidebarItem icon={<MessageSquare size={IC} aria-hidden />} label="채팅" href="/chat" on={pathname === '/chat'} />
-        <SidebarItem icon={<CalendarRange size={IC} aria-hidden />} label="WBS 일정" href="/wbs" on={pathname === '/wbs'} />
+        {/* WBS 일정은 고정 메뉴에서 뺐다 — 템플릿 폴더의 양식 문서 + FLOW로 다룬다 (/wbs URL은 유지) */}
+        <SidebarItem icon={<Workflow size={IC} aria-hidden />} label="FLOW" href="/flow" on={pathname === '/flow'} />
+        <SidebarItem icon={<CalendarDays size={IC} aria-hidden />} label="캘린더" href="/calendar" on={pathname === '/calendar'} />
         <SidebarItem icon={<Trash2 size={IC} aria-hidden />} label="휴지통" href="/trash" on={pathname === '/trash'} />
 
         <span className="grow" />

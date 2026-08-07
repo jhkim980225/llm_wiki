@@ -3349,3 +3349,179 @@ a.card:hover {
   }
 }
 
+
+/* ===== FLOW / 캘린더 (docs/design.md v1.11) ===== */
+
+.flow-form {
+  display: grid;
+  gap: 8px;
+  max-width: 720px;
+}
+
+.flow-form input,
+.flow-form textarea,
+.flow-form select {
+  width: 100%;
+}
+
+.flow-form .row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.flow-form .row > input,
+.flow-form .row > select {
+  width: auto;
+  flex: 1;
+}
+
+.flow-card {
+  max-width: 860px;
+  padding: 12px 14px;
+  margin-bottom: 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: var(--panel);
+}
+
+.flow-card .head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.flow-card .runs {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 12px;
+}
+
+.flow-card .run {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--text-dim);
+}
+
+.flow-card .run.error {
+  color: var(--danger);
+}
+
+.cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  border-top: 1px solid var(--line);
+  border-left: 1px solid var(--line);
+}
+
+.cal-head {
+  padding: 6px 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-dim);
+  border-right: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  background: var(--panel);
+}
+
+.cal-cell {
+  min-height: 86px;
+  padding: 4px 6px;
+  border-right: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  font-size: 12px;
+}
+
+.cal-cell.out {
+  background: var(--tree-bg);
+  opacity: 0.5;
+}
+
+.cal-cell.today .d {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.cal-cell .d {
+  display: block;
+  margin-bottom: 3px;
+  color: var(--text-dim);
+}
+
+.cal-item {
+  display: block;
+  margin: 1px 0;
+  padding: 1px 5px;
+  border-radius: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11.5px;
+}
+
+.cal-item.run-done {
+  background: rgb(45 212 191 / 12%);
+  color: var(--accent);
+}
+
+.cal-item.run-error {
+  background: rgb(248 113 113 / 12%);
+  color: var(--danger);
+}
+
+.cal-item.planned {
+  background: var(--hover);
+  color: var(--text-dim);
+}
+
+/* 출처 요약 팝오버 (Markdown preview) */
+.link-preview {
+  max-width: 520px;
+}
+
+.link-preview .head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.link-preview .src {
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--hover);
+  color: var(--text-dim);
+  font-size: 11px;
+}
+
+.link-preview .attrs {
+  margin: 6px 0 0;
+  display: grid;
+  gap: 4px;
+  font-size: 13px;
+}
+
+.link-preview .attrs > div {
+  display: grid;
+  grid-template-columns: 130px 1fr;
+  gap: 8px;
+}
+
+.link-preview .attrs dt {
+  color: var(--text-dim);
+}
+
+.link-preview .attrs dd {
+  margin: 0;
+  color: var(--text-body);
+  overflow-wrap: anywhere;
+}
+
+.link-preview .excerpt {
+  margin: 6px 0 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text-body);
+}

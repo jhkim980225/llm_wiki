@@ -32,5 +32,26 @@ export async function streamChat(
     acc += decoder.decode(value, { stream: true })
     onDelta(acc)
   }
+
+  // 사후 정리 — 지어낸 링크 강등 + 놓친 개체 링크 보강 (저장본과 같은 규칙).
+  // 실패해도 원문 그대로 두면 된다.
+  if (acc) {
+    try {
+      const lr = await fetch('/api/chat/linkify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: acc }),
+      })
+      if (lr.ok) {
+        const { content, changed } = await lr.json()
+        if (changed && content) {
+          acc = content
+          onDelta(acc)
+        }
+      }
+    } catch {
+      /* 보강 실패는 무시 */
+    }
+  }
   return { text: acc, conversationId }
 }

@@ -190,3 +190,4 @@ radius 13px, 패딩 52px). 입력 52px, radius 8px, focus는 accent 테두리만
 - 2026-08-06 v1.8 — 정합성 검증(/verify) 화면 추가 (사이드바 Scale 아이콘, 채팅과 휴지통 사이). RAG API vs SPARQL 비교 근거 확보용 테스트 화면
 - 2026-08-07 v1.9 — 문서 사이드 챗 패널(360px, `--tree-bg`, 좌측 1px `--line`, <1100px 숨김. 탭바 "질문" 토글). 채팅 답변 마크다운+위키링크 렌더 도입, 근거 링크 출처 배지(이메일/카톡/문서 — slug 접두사 기반 CSS ::after)
 - 2026-08-07 v1.10 — 정합성 검증 사이드바 메뉴 제거 (근거 확보 목적 달성. /verify 화면·API는 URL 직접 접근으로 유지)
+- 2026-08-07 v1.11 — FLOW(/flow)·캘린더(/calendar) 화면 추가 (사이드바 채팅 아래 Workflow·CalendarDays 아이콘). WBS 일정 메뉴 제거 — 템플릿 문서+FLOW로 흡수(/wbs URL 유지). 캘린더는 7열 그리드·완료 accent·실패 danger·예정 dim. 채팅 계열 답변 링크는 클릭 시 요약 팝오버(.link-preview, modal-card 재사용) 먼저

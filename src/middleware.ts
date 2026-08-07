@@ -21,5 +21,5 @@ export async function middleware(req: NextRequest) {
 
 export const config = {
   // 루트 '/'는 아래 패턴에 안 걸린다(그룹이 빈 문자열이면 미매치) — 명시적으로 추가.
-  matcher: ['/', '/((?!_next/static|_next/image|favicon.ico|login|api/auth/login|api/health).*)'],
+  matcher: ['/', '/((?!_next/static|_next/image|favicon.ico|login|api/auth/login|api/health|api/flow/tick).*)'],
 }

@@ -534,9 +534,14 @@ export async function sanitizeLinkedText(text: string): Promise<string> {
   return sanitizeWikiLinks(text, valid, byTitle)
 }
 
-/** 초안 버전 — 링크 정리에 더해 참고 절의 이메일 항목을 걷어낸다. */
+/** 초안 버전 — 링크 정리에 더해 참고 절의 이메일 항목을 걷어내고, 놓친 개체 링크를 보강한다. */
 export async function sanitizeDraftLinks(draft: Draft): Promise<Draft> {
-  return { ...draft, content: stripEmailRefs(await sanitizeLinkedText(draft.content)) }
+  const cleaned = stripEmailRefs(await sanitizeLinkedText(draft.content))
+  // 모델이 링크를 빼먹은 개체명(사람·업체 등)을 표면형 매칭으로 한 번 더 잇는다.
+  // 실측: relatedPages를 줘도 목록형 답변에서 누락이 남는다("김윤서" 등).
+  const { proposeLinks } = await import('@/lib/pages/linkify')
+  const enriched = await proposeLinks('', cleaned)
+  return { ...draft, content: enriched.content }
 }
 
 /** 4단계 — 스트림을 끝까지 모아 문서 하나로 만든다. */
