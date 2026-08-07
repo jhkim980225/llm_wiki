@@ -254,6 +254,15 @@ SQL로 직접 넣었고(`ON CONFLICT DO NOTHING`), 이후는 API를 쓴다. 관�
 관측된 type 값: person · organization · businessNumber · product · material.
 화면 표시(아이콘·색)를 타입별로 가르는 것은 여전히 나중 일.
 
+## 화면 표시 (2026-08-08)
+
+- 본문 위키링크 중 GraphRef로 잡힌 개체는 출처 배지(이메일·카톡) 대신 **타입 배지**
+  (인물·조직·제품·원료·사업자번호, 그 외 "개체")가 청록으로 붙는다.
+  문서 API가 본문 링크 ∩ GraphRef 교집합(`entityLinks`)을 내려주고
+  `wikiLinksToHtml`이 `data-etype`을 달아 CSS가 그린다
+- 개체 그래프: 관계 칩 필터(선택 시 50개), 노드 선택 시 우측 문서 미리보기,
+  값 조각 노드(금액·계좌·날짜 — 타입 차단 + 숫자 비율 라벨 차단) 제거
+
 ## 열린 항목
 
 - `uri` 제공 여부 미정 — 오면 라벨 조회 단계를 건너뛴다. 안 와도 동작한다
