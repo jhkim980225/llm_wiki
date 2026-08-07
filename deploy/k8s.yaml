@@ -136,7 +136,7 @@ spec:
             - configMapRef: { name: wiki-graph-env }
       containers:
         - name: app
-          image: wiki-graph:0.44.1
+          image: wiki-graph:0.44.2
           imagePullPolicy: Never
           envFrom:
             - configMapRef: { name: wiki-graph-env }
