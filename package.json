@@ -1,6 +1,6 @@
 {
   "name": "wiki-graph",
-  "version": "0.44.0",
+  "version": "0.44.1",
   "private": true,
   "prisma": {
     "seed": "node prisma/seed.mjs"
