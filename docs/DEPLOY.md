@@ -92,14 +92,16 @@ py deploy/deploy.py 0.38.0                 # 새 버전 번호 (직전보다 올
 
 ### 스키마(마이그레이션)가 바뀐 경우에만 추가로
 앱 이미지엔 Prisma CLI가 없어 마이그레이션은 **전용 이미지**로 돈다(k8s initContainer).
-prisma/migrations에 새 파일을 추가했다면:
+prisma/migrations에 새 파일을 추가했다면 **앱 배포(py deploy) 전에** migrate 이미지를 새로 반입한다:
 
 ```powershell
 docker build -f Dockerfile.migrate -t wiki-graph-migrate:<새버전> .
-# 위 앱과 같은 방식으로 worker01에 ctr import 하고,
-# deploy/k8s.yaml 의 initContainers image 태그를 <새버전>으로 바꾼 뒤 배포
+$env:FEDA_PW='...'; py scripts/ship-image.py wiki-graph-migrate:<새버전>   # worker01 containerd로 반입
+# deploy/k8s.yaml 의 initContainers image 태그를 <새버전>으로 바꾼 뒤 py deploy/deploy.py 실행
 ```
-스키마 변경이 없으면 기존 migrate 이미지 그대로 두면 된다(initContainer는 사실상 no-op).
+`scripts/ship-image.py`는 로컬 docker 이미지를 tar로 눌러 worker01 containerd에 넣는다(deploy.py의
+앱 이미지 반입과 같은 방식). 스키마 변경이 없으면 기존 migrate 이미지 그대로 두면 된다(initContainer는 no-op).
+initContainer가 `prisma migrate deploy`로 프로덕션 DB에 새 마이그레이션을 적용한다(파드 기동 시 1회).
 
 ### 클러스터 사실 (요약, 상세는 서버정보.md)
 - 네임스페이스 `jh-wiki-graph`, 앱 NodePort **31900**, 자체 Postgres(PVC 20Gi, `cephfs-sc`)
