@@ -41,6 +41,20 @@ describe('extractDateRange', () => {
     expect(extractDateRange('날짜 없는 문서')).toBeNull()
   })
 
+  // 실측: 휴가신청서는 작성일(08-07)이 기간(08-14)보다 먼저 나온다.
+  it('"기간" 줄이 있으면 작성일보다 우선한다', () => {
+    const body =
+      '> **작성일**: 2026-08-07\n\n| 항목 | 내용 |\n| 기간 | 2026-08-14 ~ 2026-08-14 (총 1일) |'
+    expect(extractDateRange(body)).toEqual({ start: '2026-08-14', end: '2026-08-14' })
+  })
+
+  it('"기간" 줄에 날짜가 없으면 본문 전체로 폴백한다', () => {
+    expect(extractDateRange('| 기간 | 미정 |\n작성일 2026-08-07')).toEqual({
+      start: '2026-08-07',
+      end: '2026-08-07',
+    })
+  })
+
   it('뒤집힌 범위는 정렬한다', () => {
     expect(extractDateRange('2026-08-20 ~ 2026-08-18')).toEqual({
       start: '2026-08-18',

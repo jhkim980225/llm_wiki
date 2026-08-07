@@ -13,12 +13,24 @@ export type DateRange = { start: string; end: string }
 /**
  * 본문에서 첫 기간(YYYY-MM-DD ~ YYYY-MM-DD) 또는 첫 단일 날짜를 뽑는다.
  *
+ * "기간"이라는 말이 든 줄이 있으면 거기서 먼저 찾는다 — 휴가신청서는 작성일이
+ * 기간보다 먼저 나와서(실측: 작성일 08-07을 휴가일로 오인) 첫 날짜가 답이 아니다.
+ *
  * linkify가 연도를 `[[kakao/2026년|2026년]]`으로 걸어 "2026년-08-14" 같은 변형이
  * 실재한다(프로덕션 휴가신청서 실측) — "년" 표기를 허용한다.
  * 범위 구분자는 ~ 또는 – 또는 "부터".
  */
 export function extractDateRange(text: string): DateRange | null {
-  const t = stripLinks(text)
+  const stripped = stripLinks(text)
+  const periodLine = stripped.split('\n').find((l) => l.includes('기간'))
+  if (periodLine) {
+    const fromLine = scan(periodLine)
+    if (fromLine) return fromLine
+  }
+  return scan(stripped)
+}
+
+function scan(t: string): DateRange | null {
   const DATE = /(\d{4})(?:년)?[-.\s]?(\d{2})[-.](\d{2})/g
 
   const found: { date: string; index: number }[] = []
