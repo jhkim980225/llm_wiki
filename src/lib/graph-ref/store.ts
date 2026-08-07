@@ -114,8 +114,41 @@ export async function resolveUri(
   if (uris.length === 0) throw new Error(`그래프에서 "${ref.name}"을(를) 찾지 못했습니다`)
 
   const uri = uris[0]
-  await db.graphRef.update({ where: { id: ref.id }, data: { uri } })
+  // 임시 참조(적재본 문서에서 즉석으로 만든 것 — id 없음)는 저장할 행이 없다.
+  if (ref.id) await db.graphRef.update({ where: { id: ref.id }, data: { uri } })
   return { uri, ambiguousCount: uris.length }
+}
+
+/**
+ * GraphRef 행이 없어도 적재본 개체 문서라면 즉석 참조를 만든다.
+ * 온톨로지 적재본은 전부 그래프의 개체이므로, 대화에 등장했는지(GraphRef 유무)와
+ * 무관하게 개체 그래프를 볼 수 있어야 한다 — kakao/정아라에서 실측된 요구.
+ */
+export async function refForSlug(pageSlug: string): Promise<GraphRefRow | null> {
+  const found = await findRefBySlug(pageSlug)
+  if (found) return found
+
+  const cut = pageSlug.indexOf('/')
+  if (cut < 0) return null
+  const sourceId = pageSlug.slice(0, cut)
+  if (!SOURCES.some((s) => s.id === sourceId)) return null
+
+  const page = await db.page.findFirst({
+    where: { slug: pageSlug, deletedAt: null, pageType: 'entity' },
+    select: { title: true },
+  })
+  if (!page) return null
+
+  return {
+    id: '', // 저장 안 된 임시 참조 표시 — resolveUri가 uri 기록을 건너뛴다
+    name: page.title,
+    type: 'entity',
+    sourceId,
+    uri: null,
+    sparql: '',
+    pageSlug,
+    promoted: true,
+  }
 }
 
 /**

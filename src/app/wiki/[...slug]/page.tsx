@@ -154,7 +154,9 @@ export default function WikiPage({ params }: { params: Promise<{ slug: string[] 
           ))}
         </span>
         <span className="side">
-          {page && !editing && ref && (
+          {/* GraphRef가 있거나(대화 수집·시딩) 적재본 개체 문서면 그래프를 볼 수 있다 —
+              온톨로지 적재본은 전부 그래프의 개체라 참조 행 유무와 무관하다. */}
+          {page && !editing && (ref || page.pageType === 'entity') && (
             <button
               className={graphOpen ? 'quiet on' : 'quiet'}
               onClick={() => setGraphOpen((v) => !v)}

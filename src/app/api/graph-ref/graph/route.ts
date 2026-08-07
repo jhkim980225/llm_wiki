@@ -1,5 +1,5 @@
 import { requireSession } from '@/lib/auth/guard'
-import { findRefByName, findRefBySlug, loadEgo } from '@/lib/graph-ref/store'
+import { findRefByName, loadEgo, refForSlug } from '@/lib/graph-ref/store'
 
 /**
  * 개체 중심 1홉 그래프. 문서 화면의 [그래프] 토글이 부른다.
@@ -16,7 +16,8 @@ export async function GET(req: Request) {
   const name = url.searchParams.get('name')?.trim()
   if (!slug && !name) return Response.json({ error: 'slug 또는 name이 필요합니다' }, { status: 400 })
 
-  const ref = slug ? await findRefBySlug(slug) : await findRefByName(name!)
+  // slug 조회는 GraphRef가 없어도 적재본 개체 문서면 즉석 참조로 그린다.
+  const ref = slug ? await refForSlug(slug) : await findRefByName(name!)
   if (!ref) return Response.json({ error: '개체 참조가 없습니다' }, { status: 404 })
 
   try {
