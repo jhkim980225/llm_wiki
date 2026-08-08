@@ -48,6 +48,62 @@ describe('cleanEntities', () => {
     ).toEqual([])
   })
 
+  // 프로덕션 감사 실측 — seunghoon이 엑셀·견적서를 훑다 올린 비개체들
+  it('표 헤더·폼 필드·분류 낱말을 버린다', () => {
+    const raw = ['원료', '제품명', '담당자', '견적서', '개발비', '반품기준'].map((name) => ({
+      name,
+      type: 'material',
+    }))
+    expect(cleanEntities(raw)).toEqual([])
+  })
+
+  it('파일명·시트명·서식 라벨을 버린다', () => {
+    const raw = [
+      { name: '앰플 벌크 65kg (작성중).xlsb', type: 'product' },
+      { name: '(성진) COA-초이스바이오-마동크림 (DL3011).pdf', type: 'material' },
+      { name: '[시트: 핸드크림]', type: 'material' },
+      { name: '○Product Name : 마데카소사이드 크림', type: 'product' },
+    ]
+    expect(cleanEntities(raw)).toEqual([])
+  })
+
+  it('비용 항목·수량 라인·집계 문구를 버린다', () => {
+    const raw = [
+      { name: '화장품 제형 개발비', type: 'product' },
+      { name: '원료구매비(퀵비 포함)', type: 'product' },
+      { name: '라벤더바디로션 300개&핸드크림 4100개', type: 'product' },
+      { name: '튜브 용기 (1만개기준)', type: 'product' },
+      { name: '총 14,600,000원', type: 'product' },
+    ]
+    expect(cleanEntities(raw)).toEqual([])
+  })
+
+  it('서술어로 끝나는 문장 조각을 버린다', () => {
+    const raw = [
+      { name: '유도하는 주요 역할을 수행합니다', type: 'material' },
+      { name: '저장통에 밀폐후 반제품실에 보관', type: 'material' },
+      { name: '세포 프로세스에 영향을 끼침', type: 'material' },
+    ]
+    expect(cleanEntities(raw)).toEqual([])
+  })
+
+  it('전성분 나열이 잘려 들어온 것을 버린다', () => {
+    expect(
+      cleanEntities([{ name: '정제수, 포스페이트버퍼드셀라인, 프로판다이올', type: 'material' }]),
+    ).toEqual([])
+  })
+
+  it('진짜 개체는 새 필터를 통과한다', () => {
+    const raw = [
+      { name: '코바상사', type: 'organization' },
+      { name: '정아라', type: 'person' },
+      { name: '버블폼토너', type: 'product' },
+      { name: '히알루론산 1% 솔루션', type: 'material' },
+      { name: '(주)성진by찰나', type: 'product' },
+    ]
+    expect(cleanEntities(raw)).toHaveLength(5)
+  })
+
   it('같은 이름은 한 번만', () => {
     expect(
       cleanEntities([

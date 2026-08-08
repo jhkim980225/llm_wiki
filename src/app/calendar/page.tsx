@@ -73,8 +73,9 @@ export default function CalendarPage() {
     const year = cursor.getFullYear()
     const month = cursor.getMonth()
     const first = new Date(year, month, 1)
-    const start = new Date(first)
-    start.setDate(1 - first.getDay()) // 일요일 시작
+    // start를 first에서 파생시키면 setDate(음수)가 first까지 되돌려 놓는다 —
+    // 그러면 아래 42칸이 전부 밀려 "오늘" 칸이 달마다 엉뚱한 자리에 찍힌다(실측).
+    const start = new Date(year, month, 1 - first.getDay()) // 일요일 시작
 
     const byDate = new Map<string, CalItem[]>()
     const put = (key: string, item: CalItem) => {
@@ -114,13 +115,14 @@ export default function CalendarPage() {
       }
     }
 
+    const todayKey = dateKey(new Date())
     const cells = Array.from({ length: 42 }, (_, i) => {
-      const d = new Date(start)
-      d.setDate(start.getDate() + i)
+      // start를 복사해 setDate로 더하면 누적 변형 위험이 있다 — 매번 새 Date를 만든다.
+      const d = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i)
       return {
         date: d,
         inMonth: d.getMonth() === month,
-        isToday: dateKey(d) === dateKey(new Date()),
+        isToday: dateKey(d) === todayKey,
         items: byDate.get(dateKey(d)) ?? [],
       }
     })

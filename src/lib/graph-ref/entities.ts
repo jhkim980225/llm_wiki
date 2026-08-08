@@ -12,6 +12,32 @@ export type CleanEntity = { name: string; type: string }
 
 const MAX_NAME = 60
 
+/**
+ * 개체가 아니라 문서 안 구조물인 것들 — 표 헤더·폼 필드·분류 낱말.
+ * 소스가 엑셀/견적서를 훑다 보니 이런 게 개체로 올라온다(감사 실측, seunghoon).
+ */
+const GENERIC = new Set([
+  '원료', '제품', '신원료', '원료명', '제품명', '제품의', '기초제품', '원료단가',
+  '반품기준', '담당자', '대표이사', '견적서', '발주서', '제품표준서', '양식', '요청',
+  '확인', '개발비', '원료비', '비고', '수량', '단가', '금액', '합계', '규격', '용량',
+])
+
+/** 비용·수량·파일·시트처럼 개체가 아닌 라인임을 드러내는 흔적. */
+const NOT_ENTITY = [
+  /\.(xlsx?|xlsb|pdf|docx?|pptx?|hwp|csv|zip|png|jpe?g)$/i, // 파일명
+  /^\[시트[:\s]/, // 엑셀 시트명
+  /^[○●▪·]\s*\w+\s*(name|품명)\s*[:：]/i, // "○Product Name :" 서식 라벨
+  /(개발비|구매비|시험\s*검사비|진행비|제작비|택배[^)]*비|퀵비)\s*(\(|$)/, // 비용 항목
+  /^\(.*\)$/, // 통째 괄호 — 견적 단서 조각
+  // 수량 라인. \b는 한글 뒤에서 경계로 잡히지 않아(실측 "300개&…") 부정 전방탐색을 쓴다.
+  /\d+\s*(ea|EA|개|kg|ml|g)(?![\w가-힣])/,
+  /[\d만천]+\s*개\s*기준/, // "(1만개기준)"
+  /^(총|약)\s/, // 집계 문구
+]
+
+/** 문장 조각 판정 — 개체명은 서술어로 끝나지 않는다. */
+const SENTENCE_TAIL = /(습니다|합니다|입니다|됩니다|한다|이다|였다|보관|제거|수행|끼침)$/
+
 /** 응답의 entities 필드가 어떤 모양으로 오든 짝이 갖춰진 것만 살린다. */
 export function cleanEntities(raw: unknown): CleanEntity[] {
   if (!Array.isArray(raw)) return []
@@ -28,6 +54,14 @@ export function cleanEntities(raw: unknown): CleanEntity[] {
     if (count(name, ')') > count(name, '(') || count(name, '”') > count(name, '“')) continue
     // "…라 한다" 는 계약서 정의부 문구다. 개체명에 들어올 일이 없다.
     if (/[이라]?\s*한다/.test(name)) continue
+    // 서술어로 끝나면 본문 문장이 잘려 들어온 것이다.
+    if (SENTENCE_TAIL.test(name)) continue
+    // 표 헤더·폼 필드·분류 낱말 — 개체가 아니라 문서 구조물이다.
+    if (GENERIC.has(name)) continue
+    // 파일명·시트명·비용 항목·수량 라인.
+    if (NOT_ENTITY.some((re) => re.test(name))) continue
+    // 쉼표로 나열된 전성분 목록이 잘려 들어온 것.
+    if ((name.match(/,/g) ?? []).length >= 2) continue
     // slug가 안 만들어지는 이름은 문서 주소를 못 가진다.
     if (!normalizeSlug(name)) continue
 

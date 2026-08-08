@@ -1992,7 +1992,10 @@ a.card:hover {
    (실측: flex:1로 뒀더니 캔버스가 내용 높이로 쪼그라들어 그래프가 구석에 26%로 떴다) */
 .entity-graph {
   display: flex;
-  height: min(72vh, 760px);
+  /* .doc의 위아래 패딩(36px + 120px)을 뺀 만큼 — 화면을 끝까지 채운다.
+     상한을 두면 큰 모니터에서 아래가 통짜로 비어 보인다(1920×1080 실측 240px). */
+  height: calc(100vh - var(--tabbar-h, 44px) - 156px);
+  min-height: 480px;
   min-width: 0;
 }
 

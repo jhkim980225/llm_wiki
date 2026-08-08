@@ -480,7 +480,26 @@ export function splitDoc(markdown: string, fallbackTitle: string): Draft {
   const title = m?.[1]?.trim() || fallbackTitle
   const content = m ? text.slice(0, m.index).trim() + '\n' + text.slice(m.index! + m[0].length).trim() : text
   const firstLine = content.split('\n').find((l) => l.trim() && !l.startsWith('#'))
-  return { title, summary: (firstLine ?? '').replace(/[*_`#>|-]/g, '').trim().slice(0, 120), content: content.trim() }
+  return { title, summary: summarize(firstLine ?? ''), content: content.trim() }
+}
+
+/**
+ * 첫 문단을 요약 한 줄로 만든다.
+ *
+ * 위키링크를 **먼저** 표시명으로 펴야 한다 — 마크다운 기호를 먼저 지우면
+ * `[[slug|라벨]]`에서 대괄호·파이프만 사라져 `slug라벨`이 된다
+ * (실측: "[[ejkim/코바상사|코바상사]]" → "ejkim/코바상사코바상사").
+ * 자르는 위치에 열린 `[[`가 걸리는 경우도 있어 잘라낸 뒤 한 번 더 훑는다.
+ */
+export function summarize(line: string, max = 120): string {
+  const flat = line
+    .replace(/\[\[([^\]|]+)\|([^\]]+)\]\]/g, '$2')
+    .replace(/\[\[([^\]]+)\]\]/g, (_, s: string) => s.split('/').pop() ?? s)
+    .replace(/[*_`#>|-]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+  if (flat.length <= max) return flat
+  return flat.slice(0, max).replace(/\s*\[+[^[]*$/, '').trimEnd() + '…'
 }
 
 export type Draft = { title: string; summary: string; content: string }
