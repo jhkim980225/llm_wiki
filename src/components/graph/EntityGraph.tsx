@@ -26,8 +26,10 @@ const TYPE_LABEL: Record<string, string> = {
   Person: '인물',
   Organization: '조직',
   OrganizationCluster: '조직(묶음)',
+  // ejkim은 메일 1건을 여러 노드로 쪼갠다 — Email은 라벨만 있는 껍데기,
+  // EmailMessage가 본문 쪽이다. 칩에 같은 이름이 둘 뜨면 고를 수 없어 갈라 둔다.
   EmailMessage: '메일',
-  Email: '메일',
+  Email: '메일 헤더',
   EmailThread: '메일 스레드',
   EmailAccount: '메일 계정',
   Document: '문서',
