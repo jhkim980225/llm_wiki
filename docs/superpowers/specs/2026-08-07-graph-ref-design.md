@@ -251,8 +251,16 @@ SQL로 직접 넣었고(`ON CONFLICT DO NOTHING`), 이후는 API를 쓴다. 관�
 많은 문장 조각, "…라 한다" 계약서 정의부, slug가 안 만들어지는 이름, 중복.
 실측 근거: seunghoon 소스가 "라 한다)과 주식회사 성진" 같은 원문 조각을 보낸다.
 
-관측된 type 값: person · organization · businessNumber · product · material.
-화면 표시(아이콘·색)를 타입별로 가르는 것은 여전히 나중 일.
+관측된 type 값(소스별로 세밀도가 다르다):
+
+- ejkim·seunghoon — person · organization · product · material · case
+- kakao(2026-08-08 배포) — 위에 더해 businessNumber · brand · jobTitle · ingredient,
+  그리고 **값·분류 타입**: amount(3,234,000원) · date(2025-04-18) · quantity(40개) ·
+  contact(031-522-4858) · period(2024년) · process(충진) · packaging(용기) ·
+  formulation(크림) · documentType(세금계산서)
+
+값·분류 타입은 문서로 만들 것이 없어 이름을 보기 전에 버린다(`NOISE_TYPES`).
+이름 패턴으로 거르는 것보다 정확하고 싸다.
 
 ## 화면 표시 (2026-08-08)
 
