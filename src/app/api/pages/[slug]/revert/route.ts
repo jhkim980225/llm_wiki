@@ -4,7 +4,7 @@ import { savePage, VersionConflictError } from '@/lib/pages/save'
 
 export async function POST(req: Request, { params }: { params: Promise<{ slug: string }> }) {
   const slug = decodeURIComponent((await params).slug)
-  const { version } = await req.json()
+  const { version } = await req.json().catch(() => null)
   if (typeof version !== 'number') {
     return NextResponse.json({ error: 'version is required' }, { status: 400 })
   }

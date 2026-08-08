@@ -21,7 +21,7 @@ const MAX_REQUEST = 2000
  * 비어 있다. 그래서 단계마다 흘려보낸다. 저장은 하지 않는다 — 사람이 보고 정한다.
  */
 export async function POST(req: Request) {
-  const body = await req.json()
+  const body = await req.json().catch(() => null)
   const request: unknown = body?.request
 
   if (typeof request !== 'string' || !request.trim()) {

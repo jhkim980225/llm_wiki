@@ -10,7 +10,7 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-  const body = await req.json()
+  const body = await req.json().catch(() => null)
   if (!body?.name) return NextResponse.json({ error: 'name is required' }, { status: 400 })
 
   const parentId: string | null = body.parentId ?? null

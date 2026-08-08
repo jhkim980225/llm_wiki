@@ -7,7 +7,7 @@ import { MAX_CONTENT, proposeLinks } from '@/lib/pages/linkify'
  */
 export async function POST(req: Request, { params }: { params: Promise<{ slug: string }> }) {
   const slug = decodeURIComponent((await params).slug)
-  const body = await req.json()
+  const body = await req.json().catch(() => null)
   const content: unknown = body?.content
 
   if (typeof content !== 'string') {

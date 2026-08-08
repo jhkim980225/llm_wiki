@@ -65,7 +65,7 @@ export async function GET(_: Request, { params }: { params: Promise<{ slug: stri
 
 export async function PUT(req: Request, { params }: { params: Promise<{ slug: string }> }) {
   const slug = decode((await params).slug)
-  const body = await req.json()
+  const body = await req.json().catch(() => null)
   if (typeof body?.expectedVersion !== 'number') {
     return NextResponse.json({ error: 'expectedVersion is required' }, { status: 400 })
   }

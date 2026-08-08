@@ -4,7 +4,7 @@ import { wouldCycle } from '@/lib/folders/tree'
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const body = await req.json()
+  const body = await req.json().catch(() => null)
 
   const folder = await db.folder.findUnique({ where: { id } })
   if (!folder) return NextResponse.json({ error: 'not found' }, { status: 404 })

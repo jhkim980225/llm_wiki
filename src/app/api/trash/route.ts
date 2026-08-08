@@ -10,7 +10,7 @@ export async function GET() {
 
 /** 복원. body: { kind: 'page'|'folder', id: string } */
 export async function POST(req: Request) {
-  const body = await req.json()
+  const body = await req.json().catch(() => null)
   const kind: unknown = body?.kind
   const id: unknown = body?.id
   if ((kind !== 'page' && kind !== 'folder') || typeof id !== 'string' || !id) {

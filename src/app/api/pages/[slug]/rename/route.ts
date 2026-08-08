@@ -4,7 +4,7 @@ import { normalizeSlug } from '@/lib/wiki/slug'
 
 export async function POST(req: Request, { params }: { params: Promise<{ slug: string }> }) {
   const oldSlug = decodeURIComponent((await params).slug)
-  const body = await req.json()
+  const body = await req.json().catch(() => null)
   const newSlug = normalizeSlug(body?.newSlug ?? '')
   if (!newSlug) return NextResponse.json({ error: 'newSlug is required' }, { status: 400 })
 

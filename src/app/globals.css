@@ -1746,6 +1746,10 @@ a.card:hover {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  /* flex 자식의 기본 min-width:auto가 줄어들기를 막아 행이 max-width(720px)를 넘어
+     925px까지 벌어졌다 — 1440px 이하에서 복원 버튼이 화면 밖으로 나갔다(실측). */
+  min-width: 0;
+  flex: 1;
 }
 
 .trash-row .meta {
@@ -3512,12 +3516,18 @@ a.card:hover {
     z-index: 30;
     width: min(280px, 82vw);
     transform: translateX(-102%);
-    transition: transform 0.18s ease;
+    transition: transform 0.18s ease, visibility 0.18s;
     box-shadow: 8px 0 24px rgb(0 0 0 / 35%);
+    /* 닫힌 드로어가 왼쪽 레일 위에 얹혀 클릭을 가로챘다 — 홈을 누르면 "대화 삭제"가
+       실행되는 식이었다(실측 히트테스트). transform만으로는 히트 영역이 남는다. */
+    visibility: hidden;
+    pointer-events: none;
   }
 
   .chat-convs.open {
     transform: translateX(0);
+    visibility: visible;
+    pointer-events: auto;
   }
 
   .chat-backdrop.open {
@@ -3720,7 +3730,9 @@ a.card:hover {
 
 .cal-grid {
   display: grid;
-  grid-template-columns: repeat(7, 1fr);
+  /* 1fr은 minmax(auto,1fr)이라 긴 일정 칩이 칸을 밀어낸다 — 실측 390px에서
+     칸이 27~173px로 갈리고 금·토가 화면 밖으로 나갔다. minmax(0,1fr)로 고정. */
+  grid-template-columns: repeat(7, minmax(0, 1fr));
   border-top: 1px solid var(--line);
   border-left: 1px solid var(--line);
 }

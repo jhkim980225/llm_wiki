@@ -9,8 +9,13 @@ import { db } from '@/lib/db'
  */
 export async function POST(req: Request, { params }: { params: Promise<{ slug: string }> }) {
   const slug = decodeURIComponent((await params).slug)
-  const body = await req.json()
-  const folderId: string | null = body?.folderId ?? null
+  const body = await req.json().catch(() => null)
+  // 루트로 옮기는 것도 정상 동작이라 null은 받되, 필드 자체가 없으면 실수로 본다 —
+  // 빈 바디가 조용히 루트 이동으로 처리됐다(실측).
+  if (!body || !('folderId' in body)) {
+    return NextResponse.json({ error: 'folderId is required (null for root)' }, { status: 400 })
+  }
+  const folderId: string | null = body.folderId ?? null
 
   const page = await db.page.findFirst({ where: { slug, deletedAt: null } })
   if (!page) return NextResponse.json({ error: `page not found: ${slug}` }, { status: 404 })

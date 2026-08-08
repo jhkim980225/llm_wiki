@@ -59,6 +59,60 @@ describe('POST /api/pages', () => {
     const res = await createPage(req('/api/pages', 'POST', { slug: 'a', title: 'A' }))
     expect(res.status).toBe(409)
   })
+
+  // 아래는 견고성 감사에서 500이 나던 것들 — 전부 4xx여야 한다
+  it('깨진 JSON·빈 바디는 400', async () => {
+    const broken = new Request('http://test/api/pages', {
+      method: 'POST',
+      body: '{oops',
+      headers: { 'content-type': 'application/json' },
+    })
+    expect((await createPage(broken)).status).toBe(400)
+    expect((await createPage(req('/api/pages', 'POST'))).status).toBe(400)
+  })
+
+  it('slug·title 타입이 문자열이 아니면 400', async () => {
+    expect((await createPage(req('/api/pages', 'POST', { slug: 123, title: ['a'] }))).status).toBe(400)
+  })
+
+  // 경로 탈출·인코딩 문자가 든 slug가 그대로 생성돼 URL로 지울 수도 없었다
+  it('경로 탈출 slug는 정규화해서 받는다', async () => {
+    const res = await createPage(req('/api/pages', 'POST', { slug: '../../etc/passwd', title: 'X' }))
+    expect(res.status).toBe(201)
+    expect((await res.json()).slug).toBe('etc/passwd')
+  })
+
+  it('slug가 정규화 후 비면 400', async () => {
+    // 특수문자만 든 이름은 normalizeSlug가 통째로 걷어내 빈 문자열이 된다
+    expect((await createPage(req('/api/pages', 'POST', { slug: '!!!', title: 'X' }))).status).toBe(400)
+    expect((await createPage(req('/api/pages', 'POST', { slug: '   ', title: 'X' }))).status).toBe(400)
+  })
+
+  it('알 수 없는 pageType·editSource는 400', async () => {
+    expect(
+      (await createPage(req('/api/pages', 'POST', { slug: 'a', title: 'A', pageType: 'NOPE' }))).status,
+    ).toBe(400)
+    expect(
+      (await createPage(req('/api/pages', 'POST', { slug: 'b', title: 'B', editSource: 'hacker' }))).status,
+    ).toBe(400)
+  })
+
+  it('aliases가 배열이 아니면 400', async () => {
+    expect(
+      (await createPage(req('/api/pages', 'POST', { slug: 'a', title: 'A', aliases: '문자열' }))).status,
+    ).toBe(400)
+  })
+
+  it('없는 폴더를 가리키면 400', async () => {
+    const res = await createPage(
+      req('/api/pages', 'POST', {
+        slug: 'a',
+        title: 'A',
+        folderId: '00000000-0000-0000-0000-000000000000',
+      }),
+    )
+    expect(res.status).toBe(400)
+  })
 })
 
 describe('GET /api/pages/[slug]', () => {
@@ -120,6 +174,26 @@ describe('POST /api/pages/[slug]/move', () => {
       params({ slug: 'a' }),
     )
     expect(res.status).toBe(404)
+  })
+
+  // 빈 바디가 조용히 "루트로 이동"으로 처리됐다(실측)
+  it('folderId 필드가 아예 없으면 400', async () => {
+    await seedPage('a')
+    expect(
+      (await movePage(req('/api/pages/a/move', 'POST', {}), params({ slug: 'a' }))).status,
+    ).toBe(400)
+    expect((await movePage(req('/api/pages/a/move', 'POST'), params({ slug: 'a' }))).status).toBe(400)
+  })
+
+  it('folderId: null은 루트 이동으로 받는다', async () => {
+    const f = await mkFolder('AI')
+    await seedPage('a', { folderId: f.id })
+    const res = await movePage(
+      req('/api/pages/a/move', 'POST', { folderId: null }),
+      params({ slug: 'a' }),
+    )
+    expect(res.status).toBe(200)
+    expect((await res.json()).folderId).toBeNull()
   })
 })
 
