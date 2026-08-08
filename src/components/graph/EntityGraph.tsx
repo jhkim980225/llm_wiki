@@ -88,6 +88,28 @@ const KIND_OF: Record<string, string> = {
   ingredient: 'thing',
   jobtitle: 'role',
   businessnumber: 'role',
+  // kakao는 클래스명이 한글이다 — 칩에 "조직 29 · 원료 23"처럼 그대로 뜬다(실측).
+  인물: 'person',
+  사람: 'person',
+  조직: 'org',
+  회사: 'org',
+  거래처: 'org',
+  브랜드: 'org',
+  문서: 'doc',
+  문서유형: 'doc',
+  계정: 'doc',
+  메일: 'doc',
+  업무: 'case',
+  업무건: 'case',
+  공정: 'case',
+  제품: 'thing',
+  원료: 'thing',
+  성분: 'thing',
+  부자재: 'thing',
+  제형: 'thing',
+  직책: 'role',
+  직함: 'role',
+  시험항목: 'role',
 }
 
 /** 개체 종류 → 노드·칩 색 클래스. 모르는 타입은 기본 회색으로 둔다. */
