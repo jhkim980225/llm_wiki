@@ -15,6 +15,7 @@ import {
   Workflow,
 } from 'lucide-react'
 import { SidebarItem } from '@/components/ui'
+import { stripBasePath } from '@/lib/wiki/href'
 import { FileTree } from './FileTree'
 import { Settings } from './Settings'
 import { version } from '../../../package.json'
@@ -73,7 +74,8 @@ export function Vault({ children }: { children: ReactNode }) {
     const href = a.getAttribute('href') ?? ''
     if (!href.startsWith('/')) return
     e.preventDefault()
-    router.push(href)
+    // 라우터가 basePath를 스스로 붙인다 — href에 든 것을 그대로 넘기면 두 번 붙는다.
+    router.push(stripBasePath(href))
   }
 
   // 로그인 화면은 셸(레일·트리) 밖에서 전체 화면으로 그린다. (훅 호출 뒤에 분기해야 안전)

@@ -7,6 +7,7 @@ import { ExternalLink, X } from 'lucide-react'
 import { wikiLinksToHtml } from '@/lib/wiki/render'
 import { parseOutLinks } from '@/lib/wiki/links'
 import { digest } from '@/lib/wiki/digest'
+import { stripBasePath } from '@/lib/wiki/href'
 
 /** 미리보기 팝오버에 띄울 문서 요약. */
 type Preview = {
@@ -86,10 +87,12 @@ export function Markdown({
     const href = a.getAttribute('href') ?? ''
     if (!href.startsWith('/')) return
     e.preventDefault()
-    if (preview && a.classList.contains('wikilink') && href.startsWith('/wiki/')) {
-      openPreview(decodeURIComponent(href.slice('/wiki/'.length)))
+    // href에 basePath가 붙어 있을 수 있다(맨 <a> 용). 라우터는 스스로 붙이므로 벗긴다.
+    const path = stripBasePath(href)
+    if (preview && a.classList.contains('wikilink') && path.startsWith('/wiki/')) {
+      openPreview(decodeURIComponent(path.slice('/wiki/'.length)))
     } else {
-      router.push(href)
+      router.push(path)
     }
   }
 
@@ -154,6 +157,6 @@ export function interceptLinks(router: ReturnType<typeof useRouter>) {
     const href = a.getAttribute('href') ?? ''
     if (!href.startsWith('/')) return
     e.preventDefault()
-    router.push(href)
+    router.push(stripBasePath(href))
   }
 }

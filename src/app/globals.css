@@ -3414,6 +3414,10 @@ a.card:hover {
   content: "성분";
 }
 
+.prose a.wikilink[data-etype="case"]::after {
+  content: "업무 건";
+}
+
 /* ── 채팅 대화 목록 (/chat) ───────────────────────────────────── */
 .chat-convs {
   width: 232px;

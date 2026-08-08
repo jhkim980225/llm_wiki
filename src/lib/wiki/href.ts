@@ -12,3 +12,13 @@ const BASE = '/graphwiki'
 export function wikiHref(slug: string): string {
   return `${BASE}/wiki/` + slug.split('/').map(encodeURIComponent).join('/')
 }
+
+/**
+ * 클릭 인터셉터가 `router.push`에 넘기기 전 basePath를 벗긴다.
+ * 라우터는 basePath를 스스로 붙이므로, href에 든 것을 그대로 넘기면
+ * `/graphwiki/graphwiki/…`가 된다(실측).
+ */
+export function stripBasePath(href: string): string {
+  if (href === BASE) return '/'
+  return href.startsWith(`${BASE}/`) ? href.slice(BASE.length) : href
+}
