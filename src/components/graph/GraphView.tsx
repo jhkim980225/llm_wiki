@@ -12,6 +12,7 @@ import {
 } from 'lucide-react'
 import type { GraphEdge, GraphNode, XY } from '@/lib/wiki/graph'
 import { layoutGraph } from '@/lib/wiki/graph'
+import { wikiHref } from '@/lib/wiki/href'
 
 type GraphData = {
   nodes: GraphNode[]
@@ -54,8 +55,6 @@ function NodeIcon({ type, size }: { type: string; size: number }) {
   return <FileText {...props} />
 }
 
-/** slug의 각 경로 조각만 인코딩해 /wiki 경로를 만든다 (FileTree와 같은 규칙). */
-const wikiHref = (slug: string) => '/wiki/' + slug.split('/').map(encodeURIComponent).join('/')
 
 const fmtDate = (iso: string) => iso.slice(0, 16).replace('T', ' ')
 

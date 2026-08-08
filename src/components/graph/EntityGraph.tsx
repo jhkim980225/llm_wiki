@@ -1,9 +1,20 @@
 'use client'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { BookOpen, ExternalLink, Maximize, Minus, Plus, Waypoints } from 'lucide-react'
+import {
+  ArrowLeft,
+  ArrowRight,
+  BookOpen,
+  ExternalLink,
+  Maximize,
+  Minus,
+  Plus,
+  Waypoints,
+} from 'lucide-react'
 import type { GraphEdge, GraphNode, XY } from '@/lib/wiki/graph'
 import { layoutGraph } from '@/lib/wiki/graph'
 import { normalizeSlug } from '@/lib/wiki/slug'
+import { digest } from '@/lib/wiki/digest'
+import { wikiHref } from '@/lib/wiki/href'
 
 type EgoData = {
   center: string
@@ -16,6 +27,10 @@ type EgoData = {
   neighborCount: number
   rels: { rel: string; count: number }[]
   types: { type: string; count: number }[]
+  /** 중심 개체의 속성 — 아무 노드도 안 골랐을 때 인스펙터가 보여준다. */
+  attrs: { key: string; value: string }[]
+  /** 그린 이웃의 관계·방향·종류. 문서를 기다리지 않고 바로 그린다. */
+  neighbors: { uri: string; rel: string; dir: 'in' | 'out'; types: string[] }[]
 }
 
 /**
@@ -45,14 +60,26 @@ const TYPE_LABEL: Record<string, string> = {
 
 const typeLabel = (t: string) => TYPE_LABEL[t] ?? t
 
-/** 선택한 이웃의 문서 미리보기 — 있으면 요약, 없으면 만들기 안내. */
+/** 선택한 이웃의 문서 미리보기 — 있으면 요약·속성표, 없으면 만들기 안내. */
 type Preview =
   | { state: 'loading' }
-  | { state: 'found'; title: string; summary: string; pageType: string }
+  | {
+      state: 'found'
+      title: string
+      summary: string
+      pageType: string
+      rows: [string, string][]
+      excerpt: string
+      folded: number
+      backlinkTotal: number
+    }
   | { state: 'missing' }
 
-/** slug의 각 경로 조각만 인코딩해 /wiki 경로를 만든다 (FileTree·GraphView와 같은 규칙). */
-const wikiHref = (slug: string) => '/wiki/' + slug.split('/').map(encodeURIComponent).join('/')
+/**
+ * 적재기가 summary에 RDF 클래스명을 그대로 넣는다(실측: 전량이 "Organization" 같은 한 단어).
+ * 그런 요약은 타입 배지와 같은 말이라 요약 자리에 둘 이유가 없다.
+ */
+const isClassName = (s: string) => !!s && !/\s/.test(s) && /^[A-Za-z]+$/.test(s)
 
 const radius = (degree: number) => 13 + Math.min(9, degree)
 
@@ -170,9 +197,22 @@ export function EntityGraph({ slug }: { slug: string }) {
   const center = data?.nodes[0]
   const sel = data?.nodes.find((n) => n.slug === selected)
   const isCenter = sel && sel.slug === center?.slug
+  // 아무것도 안 골랐거나 중심을 골랐으면 중심 카드를 보여준다 — 예전엔 한 줄짜리
+  // 안내만 떠서 패널의 60~70%가 빈 채로 남았다(실측).
+  const showCenter = !sel || !!isCenter
   // 이웃 문서 주소는 라벨로 만든다 — 적재본·승격본이 같은 규칙(entitySlug)을 쓰므로
   // 이미 있는 문서면 그대로 열리고, 없으면 문서 없음 화면이 받는다.
   const selSlug = sel && data && !isCenter ? `${data.sourceId}/${normalizeSlug(sel.title)}` : ''
+
+  // 선택한 이웃이 중심과 어떤 관계인지 — 그래프 응답에 이미 들어 있다.
+  const selRels = useMemo(
+    () => (sel && data ? data.neighbors.filter((n) => n.uri === sel.slug) : []),
+    [sel, data],
+  )
+  const selTypes = useMemo(
+    () => [...new Set(selRels.flatMap((n) => n.types))],
+    [selRels],
+  )
 
   // 선택한 이웃의 문서 미리보기
   useEffect(() => {
@@ -190,8 +230,18 @@ export function EntityGraph({ slug }: { slug: string }) {
           return
         }
         const p = await r.json()
-        if (!stale)
-          setPreview({ state: 'found', title: p.title, summary: p.summary, pageType: p.pageType })
+        if (stale) return
+        const d = digest(p.content ?? '')
+        setPreview({
+          state: 'found',
+          title: p.title,
+          summary: p.summary ?? '',
+          pageType: p.pageType,
+          rows: d.rows,
+          excerpt: d.excerpt,
+          folded: d.folded,
+          backlinkTotal: p.backlinkTotal ?? 0,
+        })
       })
       .catch(() => !stale && setPreview({ state: 'missing' }))
     return () => {
@@ -346,58 +396,163 @@ export function EntityGraph({ slug }: { slug: string }) {
         </div>
       </div>
 
-      {/* 우측 패널 — 문서 그래프(/graph) 인스펙터와 같은 사용감 */}
+      {/* 우측 패널 — 그래프 응답만으로 그릴 수 있는 것을 위에, 문서 조회가 필요한 것을 아래에.
+          1MB짜리 문서를 기다리는 동안에도 패널이 비지 않는다. */}
       <aside className="graph-inspector" aria-label="개체 상세">
-        {sel ? (
-          isCenter ? (
-            <div className="placeholder">지금 보고 있는 문서입니다.</div>
-          ) : (
-            <>
-              <div className="head">
-                <span className="ic">
-                  <BookOpen size={18} aria-hidden />
-                </span>
-                <div className="t">
-                  <h3>{sel.title}</h3>
-                  <div className="path">/{selSlug}</div>
-                </div>
-              </div>
+        <div className="head">
+          <span className="ic">
+            <BookOpen size={18} aria-hidden />
+          </span>
+          <div className="t">
+            <h3>{showCenter ? data.name : sel!.title}</h3>
+            <div className="path" title={showCenter ? data.center : selSlug}>
+              /{showCenter ? data.center : selSlug}
+            </div>
+          </div>
+        </div>
 
-              {preview?.state === 'found' && (
-                <>
-                  <div className="sec">
-                    <span className="badge">
-                      {preview.pageType === 'entity' ? '온톨로지 개체' : '문서'}
-                    </span>
-                  </div>
-                  {preview.summary && (
-                    <div className="sec">
-                      <h4>요약</h4>
-                      <p className="summary">{preview.summary}</p>
+        {showCenter ? (
+          <>
+            <div className="sec">
+              <span className="badge">{typeLabel(data.type)}</span>
+              <span className="badge quiet">{data.sourceId}</span>
+            </div>
+
+            <div className="sec stats">
+              <div className="stat">
+                이웃<span className="v">{data.neighborCount}</span>
+              </div>
+              <div className="stat">
+                관계<span className="v">{data.rels.length}종</span>
+              </div>
+              <div className="stat">
+                종류<span className="v">{data.types.length}종</span>
+              </div>
+            </div>
+
+            {data.attrs.length > 0 && (
+              <div className="sec">
+                <h4>속성</h4>
+                <dl className="attrs">
+                  {data.attrs.map((a) => (
+                    <div key={a.key + a.value}>
+                      <dt>{a.key}</dt>
+                      <dd>{a.value}</dd>
                     </div>
-                  )}
-                </>
-              )}
-              {preview?.state === 'missing' && (
-                <div className="sec">
-                  <p className="summary">
-                    아직 문서가 없습니다. 열면 그래프에서 문서를 만들 수 있습니다.
-                  </p>
-                </div>
-              )}
-              {preview?.state === 'loading' && <div className="sec placeholder">불러오는 중…</div>}
-
-              <div className="foot">
-                <a className="open-btn" href={wikiHref(selSlug)}>
-                  문서 열기
-                  <ExternalLink size={13} aria-hidden />
-                </a>
+                  ))}
+                </dl>
               </div>
-            </>
-          )
+            )}
+
+            {data.rels.length > 0 && (
+              <div className="sec">
+                <h4>주요 관계</h4>
+                <ul className="rel-list">
+                  {data.rels.slice(0, 5).map((r) => (
+                    <li key={r.rel}>
+                      <span className="n">{r.rel}</span>
+                      <span className="c">{r.count}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {!selected && data.nodes.length > 1 && (
+              <p className="hint">노드를 선택하면 그 개체의 상세가 표시됩니다.</p>
+            )}
+          </>
         ) : (
-          <div className="placeholder">노드를 선택하면 문서 미리보기가 표시됩니다.</div>
+          <>
+            {/* 그래프 응답만으로 즉시 — 문서를 기다리지 않는다 */}
+            {selRels.length > 0 && (
+              <div className="sec">
+                <h4>중심과의 관계</h4>
+                <ul className="rel-list edges">
+                  {selRels.map((r, i) => (
+                    <li key={r.rel + r.dir + i}>
+                      {r.dir === 'out' ? (
+                        <ArrowRight size={12} aria-hidden />
+                      ) : (
+                        <ArrowLeft size={12} aria-hidden />
+                      )}
+                      <span className="n">{r.rel}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {selTypes.length > 0 && (
+              <div className="sec">
+                {selTypes.map((t) => (
+                  <span key={t} className="badge" title={t}>
+                    {typeLabel(t)}
+                  </span>
+                ))}
+              </div>
+            )}
+
+            {preview?.state === 'found' && (
+              <>
+                <div className="sec stats">
+                  <div className="stat">
+                    그래프 연결<span className="v">{sel!.degree}</span>
+                  </div>
+                  <div className="stat">
+                    백링크<span className="v">{preview.backlinkTotal}</span>
+                  </div>
+                </div>
+
+                {preview.summary && !isClassName(preview.summary) && (
+                  <div className="sec">
+                    <h4>요약</h4>
+                    <p className="summary">{preview.summary}</p>
+                  </div>
+                )}
+
+                {preview.rows.length > 0 ? (
+                  <div className="sec">
+                    <h4>속성</h4>
+                    <dl className="attrs">
+                      {preview.rows.map(([k, v]) => (
+                        <div key={k + v}>
+                          <dt>{k}</dt>
+                          <dd>{v}</dd>
+                        </div>
+                      ))}
+                    </dl>
+                    {preview.folded > 0 && (
+                      <p className="hint">같은 항목 {preview.folded}건 더 있음</p>
+                    )}
+                  </div>
+                ) : (
+                  preview.excerpt && (
+                    <div className="sec">
+                      <h4>본문</h4>
+                      <p className="excerpt">{preview.excerpt}</p>
+                    </div>
+                  )
+                )}
+              </>
+            )}
+            {preview?.state === 'missing' && (
+              <div className="sec">
+                <p className="summary">
+                  아직 문서가 없습니다. 열면 문서 없음 화면에서 만들 수 있습니다.
+                </p>
+              </div>
+            )}
+            {preview?.state === 'loading' && <div className="sec placeholder">문서 불러오는 중…</div>}
+          </>
         )}
+
+        <div className="foot">
+          <a className="open-btn" href={wikiHref(showCenter ? data.center : selSlug)}>
+            문서 열기
+            <ExternalLink size={13} aria-hidden />
+          </a>
+        </div>
       </aside>
     </div>
   )

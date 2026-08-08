@@ -6,6 +6,7 @@ import DOMPurify from 'dompurify'
 import { ExternalLink, X } from 'lucide-react'
 import { wikiLinksToHtml } from '@/lib/wiki/render'
 import { parseOutLinks } from '@/lib/wiki/links'
+import { digest } from '@/lib/wiki/digest'
 
 /** 미리보기 팝오버에 띄울 문서 요약. */
 type Preview = {
@@ -24,28 +25,6 @@ function sourceLabel(slug: string): string | null {
   if (slug.startsWith('kakao/')) return '카톡'
   if (slug.startsWith('seunghoon/')) return '문서'
   return null
-}
-
-/** 문서 본문에서 속성 표와 발췌를 뽑는다 — LLM 없이 즉시 뜨는 요약. */
-function digest(content: string): { rows: [string, string][]; excerpt: string } {
-  const rows: [string, string][] = []
-  const lines = content.split('\n')
-  let inAttrs = false
-  for (const ln of lines) {
-    if (ln.startsWith('## ')) inAttrs = ln.startsWith('## 속성')
-    else if (inAttrs && ln.startsWith('|') && !ln.includes('---')) {
-      const cells = ln.split('|').map((c) => c.trim()).filter(Boolean)
-      if (cells.length >= 2 && cells[0] !== '항목') rows.push([cells[0], cells[1].slice(0, 200)])
-      if (rows.length >= 8) break
-    }
-  }
-  const excerpt = content
-    .replace(/\[\[([^\]|]+)\|?([^\]]*)\]\]/g, (_, s, d) => d || s)
-    .replace(/[#`*_>|-]/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .slice(0, 400)
-  return { rows, excerpt }
 }
 
 /**

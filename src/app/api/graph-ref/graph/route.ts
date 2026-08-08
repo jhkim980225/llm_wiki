@@ -25,6 +25,8 @@ export async function GET(req: Request) {
 
   try {
     const { ego, ambiguousCount } = await loadEgo(ref, { rel, type })
+    // 그린 노드(nodes[0]은 중심)만 추려 응답을 가볍게 유지한다.
+    const drawn = new Set(ego.nodes.slice(1).map((n) => n.slug))
     return Response.json({
       center: ref.pageSlug,
       name: ref.name,
@@ -36,6 +38,13 @@ export async function GET(req: Request) {
       neighborCount: ego.neighborCount,
       rels: ego.rels,
       types: ego.types,
+      // 중심 개체의 속성 — 이미 계산해 둔 것이라 추가 질의가 없다.
+      // 인스펙터가 아무 노드도 선택되지 않았을 때 이걸 보여준다.
+      attrs: ego.attrs.slice(0, 12),
+      // 그린 노드의 관계·방향·종류. 노드를 고르면 문서를 기다리지 않고 바로 뜬다.
+      neighbors: ego.neighbors
+        .filter((n) => drawn.has(n.uri))
+        .map((n) => ({ uri: n.uri, rel: n.rel, dir: n.dir, types: n.types })),
     })
   } catch (e) {
     return Response.json({ error: (e as Error).message }, { status: 400 })
