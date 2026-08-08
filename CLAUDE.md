@@ -13,6 +13,7 @@
 | `docs/architecture.md` | 시스템 구조도 — Fuseki(원본)·Postgres(작업본) 역할 분담, 데이터 흐름 |
 | `docs/db-roles.md` | 그래프 DB vs RDB 역할 상세 — 적재가 필요한 이유, 검색 3경로, Wikidata 선례, FAQ |
 | `docs/rag-architecture.md` | RAG 파이프라인 구조 — 검색 3갈래·예산·생성 규칙·확장 로드맵 |
+| `docs/소스-rag-api.md` | 소스 RAG API 3개 실측 — 응답 형태·type 값·개체 필터·소요시간. `scripts/probe-rag-api.mjs`로 재현 |
 | `docs/superpowers/specs/2026-08-04-wiki-v2-design.md` | v2 설계 결정 기록 |
 | `docs/서버정보.md` | **배포·SSH 전 필독** — 클러스터 접속 계정·비밀번호(FEDA_PW), 스토리지클래스. git 미포함 |
 | `docs/manual/사용자-매뉴얼.md` | 최종 사용자 매뉴얼 (화면 캡처 포함, PDF 동봉). 화면 바뀌면 캡처·PDF 재생성 |
