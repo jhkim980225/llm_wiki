@@ -1730,6 +1730,9 @@ a.card:hover {
   border-radius: var(--r);
   color: var(--text-dim);
   font-size: 13.5px;
+  /* grid item의 기본 min-width:auto가 콘텐츠 크기를 하한으로 잡아 행이 목록 폭(720px)을
+     넘어 925px로 벌어졌다 — 1440px 이하에서 복원 버튼이 화면 밖이었다(실측). */
+  min-width: 0;
 }
 
 .trash-row:hover {

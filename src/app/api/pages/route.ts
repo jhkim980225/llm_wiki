@@ -6,6 +6,7 @@ import { normalizeSlug } from '@/lib/wiki/slug'
 import { embedPageSafe } from '@/lib/pages/embedding'
 
 const MAX_LIMIT = 200
+const MAX_OFFSET = 100_000
 
 export async function GET(req: Request) {
   const u = new URL(req.url)
@@ -14,6 +15,11 @@ export async function GET(req: Request) {
   // limit=-1이면 Prisma가 역방향 페이징으로 해석해 정렬이 뒤집힌다(실측) — 하한을 둔다.
   const limit = Math.min(Math.max(Number(u.searchParams.get('limit')) || 50, 1), MAX_LIMIT)
   const offset = Math.max(Number(u.searchParams.get('offset')) || 0, 0)
+  // 적재본까지 18만 행이라 offset이 크면 DB가 그만큼을 세고 버린다(실측 offset 1억 = 14.6초).
+  // 실사용 페이징은 이 범위를 넘지 않는다 — 넘으면 잘못된 호출로 본다.
+  if (offset > MAX_OFFSET) {
+    return NextResponse.json({ error: `offset too large (max ${MAX_OFFSET})` }, { status: 400 })
+  }
 
   const where = {
     deletedAt: null,
