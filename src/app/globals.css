@@ -2051,7 +2051,9 @@ a.card:hover {
 }
 
 .entity-graph .gnode circle {
-  stroke: color-mix(in srgb, var(--k, var(--k-etc)) 55%, transparent);
+  /* 테두리만으로는 축소 배율(70~80%)에서 색이 안 읽힌다 — 채움도 살짝 물들인다. */
+  fill: color-mix(in srgb, var(--k, var(--k-etc)) 14%, #24282d);
+  stroke: color-mix(in srgb, var(--k, var(--k-etc)) 60%, transparent);
 }
 
 .entity-graph .gnode:hover circle {
