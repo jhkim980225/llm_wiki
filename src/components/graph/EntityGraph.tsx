@@ -60,6 +60,45 @@ const TYPE_LABEL: Record<string, string> = {
 
 const typeLabel = (t: string) => TYPE_LABEL[t] ?? t
 
+/**
+ * 종류를 6개 묶음으로 접어 색을 준다. 타입은 소스마다 십수 종이라 하나씩 색을 주면
+ * design.md가 금지한 무지개 노드가 된다 — 사람·조직·문서·업무·물건·그 외로만 가른다.
+ * 소문자로 맞춰 비교한다(kakao는 documentType, ejkim은 Document 식으로 표기가 갈린다).
+ */
+const KIND_OF: Record<string, string> = {
+  person: 'person',
+  organization: 'org',
+  organizationcluster: 'org',
+  brand: 'org',
+  emailmessage: 'doc',
+  email: 'doc',
+  emailthread: 'doc',
+  emailaccount: 'doc',
+  document: 'doc',
+  documenttype: 'doc',
+  businesscase: 'case',
+  businessactivity: 'case',
+  case: 'case',
+  organizationroleevidence: 'case',
+  relationshipassertion: 'case',
+  product: 'thing',
+  rawmaterial: 'thing',
+  auxiliarymaterial: 'thing',
+  material: 'thing',
+  ingredient: 'thing',
+  jobtitle: 'role',
+  businessnumber: 'role',
+}
+
+/** 개체 종류 → 노드·칩 색 클래스. 모르는 타입은 기본 회색으로 둔다. */
+const kindOf = (types: string[]): string => {
+  for (const t of types) {
+    const k = KIND_OF[t.toLowerCase()]
+    if (k) return k
+  }
+  return 'etc'
+}
+
 /** 선택한 이웃의 문서 미리보기 — 있으면 요약·속성표, 없으면 만들기 안내. */
 type Preview =
   | { state: 'loading' }
@@ -214,6 +253,15 @@ export function EntityGraph({ slug }: { slug: string }) {
     [selRels],
   )
 
+  // 노드 URI → 색 묶음. 중심은 GraphRef.type, 이웃은 rdf:type에서 얻는다.
+  const kindByUri = useMemo(() => {
+    const m = new Map<string, string>()
+    if (!data) return m
+    if (data.nodes[0]) m.set(data.nodes[0].slug, kindOf([data.type]))
+    for (const n of data.neighbors) if (!m.has(n.uri)) m.set(n.uri, kindOf(n.types))
+    return m
+  }, [data])
+
   // 선택한 이웃의 문서 미리보기
   useEffect(() => {
     if (!selSlug) {
@@ -269,10 +317,11 @@ export function EntityGraph({ slug }: { slug: string }) {
                 {data.types.map((t) => (
                   <button
                     key={t.type}
-                    className={type === t.type ? 'on' : ''}
+                    className={`k-${kindOf([t.type])}${type === t.type ? ' on' : ''}`}
                     title={t.type}
                     onClick={() => setType(type === t.type ? null : t.type)}
                   >
+                    <i className="dot" aria-hidden />
                     {typeLabel(t.type)} {t.count}
                   </button>
                 ))}
@@ -343,7 +392,9 @@ export function EntityGraph({ slug }: { slug: string }) {
               return (
                 <g
                   key={n.slug}
-                  className={`gnode entity${selected === n.slug ? ' sel' : ''}`}
+                  className={`gnode k-${kindByUri.get(n.slug) ?? 'etc'}${
+                    selected === n.slug ? ' sel' : ''
+                  }`}
                   transform={`translate(${p.x} ${p.y})`}
                   onClick={() => setSelected(n.slug)}
                 >

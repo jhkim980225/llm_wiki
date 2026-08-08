@@ -2037,6 +2037,66 @@ a.card:hover {
   pointer-events: none;
 }
 
+/* 개체 종류별 색 — 6묶음으로만 가른다(사람·조직·문서·업무·물건·역할).
+   타입이 십수 종이라 하나씩 색을 주면 무지개가 된다(design.md). 저채도로 맞춰
+   선택 강조(accent 1.5px 테두리)가 색에 묻히지 않게 한다. */
+.entity-graph {
+  --k-person: #7c9cc4;
+  --k-org: #5fb8a4;
+  --k-doc: #a79bc8;
+  --k-case: #c4a47c;
+  --k-thing: #8fb87c;
+  --k-role: #c48ca4;
+  --k-etc: #7a8189;
+}
+
+.entity-graph .gnode circle {
+  stroke: color-mix(in srgb, var(--k, var(--k-etc)) 55%, transparent);
+}
+
+.entity-graph .gnode:hover circle {
+  stroke: var(--k, var(--k-etc));
+}
+
+.entity-graph .gnode text {
+  fill: color-mix(in srgb, var(--k, var(--k-etc)) 72%, var(--text-dim));
+}
+
+.entity-graph .gnode.k-person { --k: var(--k-person); }
+.entity-graph .gnode.k-org { --k: var(--k-org); }
+.entity-graph .gnode.k-doc { --k: var(--k-doc); }
+.entity-graph .gnode.k-case { --k: var(--k-case); }
+.entity-graph .gnode.k-thing { --k: var(--k-thing); }
+.entity-graph .gnode.k-role { --k: var(--k-role); }
+
+/* 선택 노드는 색 위에 accent 테두리 — 어느 종류든 선택이 먼저 읽혀야 한다. */
+.entity-graph .gnode.sel circle {
+  stroke: var(--accent);
+  stroke-width: 1.5;
+}
+
+/* 칩의 점이 노드 색과 같은 언어를 쓴다 — 범례를 따로 두지 않는 이유. */
+.entity-graph .rel-chips .dot {
+  width: 6px;
+  height: 6px;
+  margin-right: 5px;
+  border-radius: 50%;
+  background: var(--k, var(--k-etc));
+  flex-shrink: 0;
+}
+
+.entity-graph .rel-chips button.k-person { --k: var(--k-person); }
+.entity-graph .rel-chips button.k-org { --k: var(--k-org); }
+.entity-graph .rel-chips button.k-doc { --k: var(--k-doc); }
+.entity-graph .rel-chips button.k-case { --k: var(--k-case); }
+.entity-graph .rel-chips button.k-thing { --k: var(--k-thing); }
+.entity-graph .rel-chips button.k-role { --k: var(--k-role); }
+
+.entity-graph .rel-chips button {
+  display: inline-flex;
+  align-items: center;
+}
+
 /* 캔버스 왼쪽 열 — 칩(정상 흐름) 위, 그래프가 남은 높이를 전부 갖는다. */
 .entity-graph .main {
   display: flex;
