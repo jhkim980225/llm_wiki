@@ -2047,11 +2047,25 @@ a.card:hover {
   background: var(--main-bg);
 }
 
+/* 줄바꿈 대신 가로 스크롤 — 칩이 여러 줄로 늘어나면 그래프가 눌린다
+   (실측: 종류 11 + 관계 14 → 5줄, 그래프가 47%로 축소). 칩은 개수 내림차순이라
+   중요한 것이 앞에 온다. */
 .entity-graph .rel-chips {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
   gap: 5px;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.entity-graph .rel-chips::-webkit-scrollbar {
+  height: 6px;
+}
+
+.entity-graph .rel-chips::-webkit-scrollbar-thumb {
+  border-radius: 3px;
+  background: var(--line);
 }
 
 .entity-graph .rel-chips .k {
