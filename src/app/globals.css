@@ -2003,6 +2003,7 @@ a.card:hover {
   position: relative;
   flex: 1;
   min-width: 0;
+  min-height: 0;
   overflow: hidden;
   background: var(--main-bg);
 }
@@ -2027,14 +2028,23 @@ a.card:hover {
   pointer-events: none;
 }
 
-/* 필터 칩 — 툴바 아래. 종류(개체 계층)와 관계 두 줄. */
+/* 캔버스 왼쪽 열 — 칩(정상 흐름) 위, 그래프가 남은 높이를 전부 갖는다. */
+.entity-graph .main {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+/* 필터 칩 — 종류(개체 계층)와 관계 두 줄. 칩이 5줄까지 늘어나는 개체가 있어
+   캔버스에 겹치지 않게 흐름에 둔다(실측: 정재윤테라피 종류 11 + 관계 14). */
 .entity-graph .graph-filters {
-  position: absolute;
-  top: 54px;
-  left: 14px;
-  right: 14px;
   display: grid;
   gap: 6px;
+  padding: 12px 14px 10px;
+  border-bottom: 1px solid var(--line);
+  background: var(--main-bg);
 }
 
 .entity-graph .rel-chips {

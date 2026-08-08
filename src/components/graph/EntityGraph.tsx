@@ -204,6 +204,50 @@ export function EntityGraph({ slug }: { slug: string }) {
 
   return (
     <div className="entity-graph">
+      <div className="main">
+        {/* 두 축 필터 — 종류(개체 계층)와 관계. 함께 걸면 둘 다 만족하는 이웃만 그린다.
+            하나라도 고르면 상한이 50으로 올라간다.
+            캔버스 위에 겹치지 않게 정상 흐름에 둔다 — 칩이 5줄까지 늘어나는 개체가 있다. */}
+        {(data.types.length > 1 || data.rels.length > 1) && (
+          <div className="graph-filters">
+            {data.types.length > 1 && (
+              <div className="rel-chips" aria-label="개체 종류">
+                <span className="k">종류</span>
+                <button className={type === null ? 'on' : ''} onClick={() => setType(null)}>
+                  전체
+                </button>
+                {data.types.map((t) => (
+                  <button
+                    key={t.type}
+                    className={type === t.type ? 'on' : ''}
+                    title={t.type}
+                    onClick={() => setType(type === t.type ? null : t.type)}
+                  >
+                    {typeLabel(t.type)} {t.count}
+                  </button>
+                ))}
+              </div>
+            )}
+            {data.rels.length > 1 && (
+              <div className="rel-chips" aria-label="관계 종류">
+                <span className="k">관계</span>
+                <button className={rel === null ? 'on' : ''} onClick={() => setRel(null)}>
+                  전체
+                </button>
+                {data.rels.map((r) => (
+                  <button
+                    key={r.rel}
+                    className={rel === r.rel ? 'on' : ''}
+                    onClick={() => setRel(rel === r.rel ? null : r.rel)}
+                  >
+                    {r.rel} {r.count}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
       <div className="canvas" ref={wrapRef}>
         <svg
           ref={svgRef}
@@ -273,48 +317,6 @@ export function EntityGraph({ slug }: { slug: string }) {
           </span>
         </div>
 
-        {/* 두 축 필터 — 종류(개체 계층)와 관계. 함께 걸면 둘 다 만족하는 이웃만 그린다.
-            하나라도 고르면 상한이 50으로 올라간다. */}
-        {(data.types.length > 1 || data.rels.length > 1) && (
-          <div className="graph-filters">
-            {data.types.length > 1 && (
-              <div className="rel-chips" aria-label="개체 종류">
-                <span className="k">종류</span>
-                <button className={type === null ? 'on' : ''} onClick={() => setType(null)}>
-                  전체
-                </button>
-                {data.types.map((t) => (
-                  <button
-                    key={t.type}
-                    className={type === t.type ? 'on' : ''}
-                    title={t.type}
-                    onClick={() => setType(type === t.type ? null : t.type)}
-                  >
-                    {typeLabel(t.type)} {t.count}
-                  </button>
-                ))}
-              </div>
-            )}
-            {data.rels.length > 1 && (
-              <div className="rel-chips" aria-label="관계 종류">
-                <span className="k">관계</span>
-                <button className={rel === null ? 'on' : ''} onClick={() => setRel(null)}>
-                  전체
-                </button>
-                {data.rels.map((r) => (
-                  <button
-                    key={r.rel}
-                    className={rel === r.rel ? 'on' : ''}
-                    onClick={() => setRel(rel === r.rel ? null : r.rel)}
-                  >
-                    {r.rel} {r.count}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
         <div className="graph-controls">
           <button onClick={() => zoom(1 / 1.25)} aria-label="축소">
             <Minus size={14} aria-hidden />
@@ -335,8 +337,13 @@ export function EntityGraph({ slug }: { slug: string }) {
         )}
 
         {data.nodes.length <= 1 && (
-          <div className="empty-mid">그래프에서 이 개체의 관계를 찾지 못했습니다.</div>
+          <div className="empty-mid">
+            {rel || type
+              ? '이 조건에 맞는 이웃이 없습니다.'
+              : '그래프에서 이 개체의 관계를 찾지 못했습니다.'}
+          </div>
         )}
+        </div>
       </div>
 
       {/* 우측 패널 — 문서 그래프(/graph) 인스펙터와 같은 사용감 */}
