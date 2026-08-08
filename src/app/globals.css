@@ -2027,15 +2027,28 @@ a.card:hover {
   pointer-events: none;
 }
 
-/* 관계 종류 필터 칩 — 툴바 아래 */
-.entity-graph .rel-chips {
+/* 필터 칩 — 툴바 아래. 종류(개체 계층)와 관계 두 줄. */
+.entity-graph .graph-filters {
   position: absolute;
   top: 54px;
   left: 14px;
   right: 14px;
+  display: grid;
+  gap: 6px;
+}
+
+.entity-graph .rel-chips {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 5px;
+}
+
+.entity-graph .rel-chips .k {
+  width: 30px;
+  flex-shrink: 0;
+  color: var(--text-faint);
+  font-size: 11px;
 }
 
 .entity-graph .rel-chips button {

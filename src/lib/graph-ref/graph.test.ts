@@ -34,8 +34,8 @@ describe('buildEgo', () => {
     ])
 
     expect(r.neighbors).toEqual([
-      { uri: 'urn:t:e:lee', label: '이', rel: 'manages', dir: 'in' },
-      { uri: 'urn:t:e:feda', label: '페다', rel: 'worksAt', dir: 'out' },
+      { uri: 'urn:t:e:lee', label: '이', rel: 'manages', dir: 'in', types: [] },
+      { uri: 'urn:t:e:feda', label: '페다', rel: 'worksAt', dir: 'out', types: [] },
     ])
     // 중심이 항상 nodes[0], degree는 붙은 에지 수
     expect(r.nodes[0]).toEqual({
@@ -179,7 +179,59 @@ describe('buildEgo', () => {
       edges: [],
       neighborCount: 0,
       rels: [],
+      types: [],
     })
+  })
+
+  // 관계와는 다른 축 — 개체 계층(문서·인물·조직)으로도 스위칭한다
+  it('종류(type) 칩과 필터', () => {
+    const typed = (rel: string, uri: string, label: string, type: string): Binding[] => [
+      row(rel, uri, 'out', label),
+      { ...row(rel, uri, 'out', label), otherType: { type: 'uri', value: type } },
+    ]
+    const rows = [
+      ...typed('urn:t:rel:authoredBy', 'urn:t:e:m1', '메일1', 'urn:t:c:EmailMessage'),
+      ...typed('urn:t:rel:authoredBy', 'urn:t:e:m2', '메일2', 'urn:t:c:EmailMessage'),
+      ...typed('urn:t:rel:worksAt', 'urn:t:e:feda', '페다', 'urn:t:c:Organization'),
+    ]
+
+    const all = buildEgo(source, center, rows)
+    expect(all.types).toEqual([
+      { type: 'EmailMessage', count: 2 },
+      { type: 'Organization', count: 1 },
+    ])
+
+    const onlyOrg = buildEgo(source, center, rows, { type: 'Organization' })
+    expect(onlyOrg.nodes.slice(1).map((n) => n.title)).toEqual(['페다'])
+    expect(onlyOrg.neighborCount).toBe(1)
+    // 칩 목록은 전체 기준을 유지한다 — 되돌아갈 수 있어야 한다
+    expect(onlyOrg.types).toHaveLength(2)
+  })
+
+  it('종류와 관계를 함께 걸면 둘 다 만족하는 것만', () => {
+    const typed = (rel: string, uri: string, label: string, type: string): Binding[] => [
+      row(rel, uri, 'out', label),
+      { ...row(rel, uri, 'out', label), otherType: { type: 'uri', value: type } },
+    ]
+    const rows = [
+      ...typed('urn:t:rel:authoredBy', 'urn:t:e:m1', '메일1', 'urn:t:c:EmailMessage'),
+      ...typed('urn:t:rel:mentions', 'urn:t:e:m2', '메일2', 'urn:t:c:EmailMessage'),
+      ...typed('urn:t:rel:authoredBy', 'urn:t:e:p1', '사람1', 'urn:t:c:Person'),
+    ]
+    const r = buildEgo(source, center, rows, { rel: 'authoredBy', type: 'EmailMessage' })
+    expect(r.nodes.slice(1).map((n) => n.title)).toEqual(['메일1'])
+  })
+
+  it('한 개체가 타입 여럿이면 어느 쪽 칩으로도 잡힌다', () => {
+    const rows = [
+      row('urn:t:rel:involves', 'urn:t:e:x', 'out', '초이스바이오'),
+      { ...row('urn:t:rel:involves', 'urn:t:e:x', 'out', '초이스바이오'), otherType: { type: 'uri', value: 'urn:t:c:Organization' } },
+      { ...row('urn:t:rel:involves', 'urn:t:e:x', 'out', '초이스바이오'), otherType: { type: 'uri', value: 'urn:t:c:BusinessCase' } },
+    ]
+    const r = buildEgo(source, center, rows)
+    expect(r.neighbors[0].types).toEqual(['BusinessCase', 'Organization'])
+    expect(buildEgo(source, center, rows, { type: 'BusinessCase' }).nodes).toHaveLength(2)
+    expect(buildEgo(source, center, rows, { type: 'Organization' }).nodes).toHaveLength(2)
   })
 
   // 온톨로지가 금액·계좌·날짜를 개체 노드로 모델링해 둔 것들 — 이웃에서 뺀다

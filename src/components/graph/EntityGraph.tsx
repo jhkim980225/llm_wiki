@@ -15,7 +15,33 @@ type EgoData = {
   edges: GraphEdge[]
   neighborCount: number
   rels: { rel: string; count: number }[]
+  types: { type: string; count: number }[]
 }
+
+/**
+ * 온톨로지 클래스명 → 화면 표시명. 소스마다 어휘가 달라 아는 것만 옮기고
+ * 모르는 값은 원문 그대로 둔다 (칩이 사라지는 것보다 영문이 낫다).
+ */
+const TYPE_LABEL: Record<string, string> = {
+  Person: '인물',
+  Organization: '조직',
+  OrganizationCluster: '조직(묶음)',
+  EmailMessage: '메일',
+  Email: '메일',
+  EmailThread: '메일 스레드',
+  EmailAccount: '메일 계정',
+  Document: '문서',
+  BusinessCase: '업무 건',
+  BusinessActivity: '업무 활동',
+  JobTitle: '직함',
+  Product: '제품',
+  RawMaterial: '원료',
+  AuxiliaryMaterial: '부자재',
+  OrganizationRoleEvidence: '역할 근거',
+  RelationshipAssertion: '관계 기술',
+}
+
+const typeLabel = (t: string) => TYPE_LABEL[t] ?? t
 
 /** 선택한 이웃의 문서 미리보기 — 있으면 요약, 없으면 만들기 안내. */
 type Preview =
@@ -45,6 +71,7 @@ export function EntityGraph({ slug }: { slug: string }) {
 
   const [data, setData] = useState<EgoData | null>(null)
   const [rel, setRel] = useState<string | null>(null)
+  const [type, setType] = useState<string | null>(null)
   const [error, setError] = useState('')
   const [selected, setSelected] = useState<string | null>(null)
   const [preview, setPreview] = useState<Preview | null>(null)
@@ -55,7 +82,9 @@ export function EntityGraph({ slug }: { slug: string }) {
     setData(null)
     setError('')
     setSelected(null)
-    const q = rel ? `&rel=${encodeURIComponent(rel)}` : ''
+    const q =
+      (rel ? `&rel=${encodeURIComponent(rel)}` : '') +
+      (type ? `&type=${encodeURIComponent(type)}` : '')
     fetch(`/api/graph-ref/graph?slug=${encodeURIComponent(slug)}${q}`)
       .then(async (r) => {
         const body = await r.json().catch(() => ({}))
@@ -67,7 +96,13 @@ export function EntityGraph({ slug }: { slug: string }) {
     return () => {
       stale = true
     }
-  }, [slug, rel])
+  }, [slug, rel, type])
+
+  // 문서를 옮기면 필터는 초기화한다 — 이전 개체의 관계·종류가 남아 있으면 빈 그래프가 된다.
+  useEffect(() => {
+    setRel(null)
+    setType(null)
+  }, [slug])
 
   const pos = useMemo<Record<string, XY>>(() => {
     if (!data) return {}
@@ -236,21 +271,45 @@ export function EntityGraph({ slug }: { slug: string }) {
           </span>
         </div>
 
-        {/* 관계 종류 필터 — 하나를 고르면 그 관계만 50개까지 그린다 */}
-        {data.rels.length > 1 && (
-          <div className="rel-chips" role="tablist" aria-label="관계 종류">
-            <button className={rel === null ? 'on' : ''} onClick={() => setRel(null)}>
-              전체
-            </button>
-            {data.rels.map((r) => (
-              <button
-                key={r.rel}
-                className={rel === r.rel ? 'on' : ''}
-                onClick={() => setRel(rel === r.rel ? null : r.rel)}
-              >
-                {r.rel} {r.count}
-              </button>
-            ))}
+        {/* 두 축 필터 — 종류(개체 계층)와 관계. 함께 걸면 둘 다 만족하는 이웃만 그린다.
+            하나라도 고르면 상한이 50으로 올라간다. */}
+        {(data.types.length > 1 || data.rels.length > 1) && (
+          <div className="graph-filters">
+            {data.types.length > 1 && (
+              <div className="rel-chips" aria-label="개체 종류">
+                <span className="k">종류</span>
+                <button className={type === null ? 'on' : ''} onClick={() => setType(null)}>
+                  전체
+                </button>
+                {data.types.map((t) => (
+                  <button
+                    key={t.type}
+                    className={type === t.type ? 'on' : ''}
+                    title={t.type}
+                    onClick={() => setType(type === t.type ? null : t.type)}
+                  >
+                    {typeLabel(t.type)} {t.count}
+                  </button>
+                ))}
+              </div>
+            )}
+            {data.rels.length > 1 && (
+              <div className="rel-chips" aria-label="관계 종류">
+                <span className="k">관계</span>
+                <button className={rel === null ? 'on' : ''} onClick={() => setRel(null)}>
+                  전체
+                </button>
+                {data.rels.map((r) => (
+                  <button
+                    key={r.rel}
+                    className={rel === r.rel ? 'on' : ''}
+                    onClick={() => setRel(rel === r.rel ? null : r.rel)}
+                  >
+                    {r.rel} {r.count}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
