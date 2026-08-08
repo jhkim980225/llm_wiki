@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { requireSession } from '@/lib/auth/guard'
+import { db } from '@/lib/db'
 import { SOURCES } from '@/lib/ontology/source'
 import { assertReadOnly } from '@/lib/graph-ref/sparql'
 import { findRefByName, findRefBySlug, upsertRef } from '@/lib/graph-ref/store'
@@ -21,6 +22,14 @@ export async function GET(req: Request) {
   if (!authed) return Response.json({ error: 'unauthorized' }, { status: 401 })
 
   const url = new URL(req.url)
+
+  // ?all=1 — slug→type 표만 통째로. 채팅 화면이 답변 링크에 타입 배지를 달 때 쓴다.
+  // 수백 행 규모라 한 번에 받아 클라이언트에서 맞추는 편이 링크마다 조회하는 것보다 싸다.
+  if (url.searchParams.get('all') === '1') {
+    const items = await db.graphRef.findMany({ select: { pageSlug: true, type: true } })
+    return Response.json({ items })
+  }
+
   const slug = url.searchParams.get('slug')?.trim()
   const name = url.searchParams.get('name')?.trim()
   if (!slug && !name) return Response.json({ error: 'slug 또는 name이 필요합니다' }, { status: 400 })

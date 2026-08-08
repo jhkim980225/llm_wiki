@@ -1,5 +1,6 @@
 import { db } from '@/lib/db'
 import { linkifyContent, parseOutLinks, type LinkRef } from '@/lib/wiki/links'
+import { isNoiseLabel } from '@/lib/graph-ref/graph'
 
 /**
  * 한 번에 제안할 링크 상한. 상한을 정하는 건 linkifyContent가 아니라 하류다 —
@@ -70,9 +71,13 @@ export async function proposeLinks(slug: string, content: string): Promise<Propo
   //
   // 같은 이름이 Page에도 GraphRef에도 있으면 Page가 본체다(적재본이 이미 있는 경우).
   // 이 좁히기를 먼저 해야, 승격 전 GraphRef가 동명이인처럼 보여 링크를 막지 않는다.
+  //
+  // 값이 제목인 적재본 문서(날짜 "2026-07-22", 수량 "1,330개", 금액 "190,000원")는
+  // 후보에서 뺀다 — 본문의 날짜·금액마다 링크가 붙어 답변이 지저분해진다(실측 채팅 화면).
+  // 개체 그래프에서 값 노드를 거르는 것과 같은 판정을 쓴다.
   const best = new Map<string, number>()
   for (const r of rows) best.set(r.title, Math.min(best.get(r.title) ?? 9, r.prio))
-  const candidates = rows.filter((r) => r.prio === best.get(r.title))
+  const candidates = rows.filter((r) => r.prio === best.get(r.title) && !isNoiseLabel(r.title))
 
   const bySlug = new Map(candidates.map((r) => [r.slug, r.title]))
   const mine = sourceOf(slug)

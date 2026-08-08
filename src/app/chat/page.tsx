@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { MessageSquare, Send, Plus, Trash2, Menu } from 'lucide-react'
 import { Markdown } from '@/components/wiki/Markdown'
+import { useEntityTypes } from '@/components/wiki/useEntityTypes'
 import { streamChat } from '@/lib/chat/stream'
 
 type Msg = { role: 'user' | 'assistant'; content: string }
@@ -21,6 +22,7 @@ export default function ChatPage() {
   const [input, setInput] = useState('')
   const [busy, setBusy] = useState(false)
   const [convOpen, setConvOpen] = useState(false) // 모바일 대화목록 드로어
+  const entityTypes = useEntityTypes()
   const scrollRef = useRef<HTMLDivElement>(null)
 
   const scrollDown = () =>
@@ -182,7 +184,7 @@ export default function ChatPage() {
                     </span>
                     <div className="body">
                       {m.content ? (
-                        <Markdown content={m.content} preview />
+                        <Markdown content={m.content} entityTypes={entityTypes} preview />
                       ) : busy && i === messages.length - 1 ? (
                         <span className="meta">생각하는 중…</span>
                       ) : null}

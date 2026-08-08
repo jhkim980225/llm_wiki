@@ -131,6 +131,19 @@ describe('proposeLinks', () => {
     expect(r.added).toEqual([{ slug: 'ejkim/정아라', title: '정아라' }])
   })
 
+  // 실측: 채팅 답변의 날짜·수량·금액마다 링크가 붙어 지저분했다
+  it('값이 제목인 문서는 후보에서 뺀다 (날짜·수량·금액)', async () => {
+    await seed('kakao/2026-07-22', '2026-07-22')
+    await seed('kakao/1330개', '1,330개')
+    await seed('kakao/190000원', '190,000원')
+    await seed('ejkim/코바상사', '코바상사')
+    await seed('here', '이 문서')
+
+    const r = await proposeLinks('here', '2026-07-22에 코바상사가 1,330개를 190,000원에 받았다')
+
+    expect(r.added).toEqual([{ slug: 'ejkim/코바상사', title: '코바상사' }])
+  })
+
   // 적재본이 이미 있으면 그쪽이 본체다. 좁히지 않으면 동명이인으로 보여 링크가 막힌다.
   it('같은 이름이 문서에도 개체에도 있으면 문서를 고른다', async () => {
     await seed('ejkim/정아라', '정아라')

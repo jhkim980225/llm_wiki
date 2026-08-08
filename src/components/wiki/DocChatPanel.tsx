@@ -2,6 +2,7 @@
 import { useRef, useState } from 'react'
 import { MessageSquareText, Send, X } from 'lucide-react'
 import { Markdown } from '@/components/wiki/Markdown'
+import { useEntityTypes } from '@/components/wiki/useEntityTypes'
 import { streamChat } from '@/lib/chat/stream'
 
 type Msg = { role: 'user' | 'assistant'; content: string }
@@ -16,6 +17,7 @@ export function DocChatPanel({ slug, onClose }: { slug: string; onClose: () => v
   const [input, setInput] = useState('')
   const [busy, setBusy] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
+  const entityTypes = useEntityTypes()
 
   const scrollDown = () =>
     requestAnimationFrame(() => {
@@ -74,7 +76,7 @@ export function DocChatPanel({ slug, onClose }: { slug: string; onClose: () => v
             <div key={i} className="msg-ai">
               <div className="body">
                 {m.content ? (
-                  <Markdown content={m.content} preview />
+                  <Markdown content={m.content} entityTypes={entityTypes} preview />
                 ) : busy && i === messages.length - 1 ? (
                   <span className="meta">생각하는 중…</span>
                 ) : null}
