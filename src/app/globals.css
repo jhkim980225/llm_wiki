@@ -3401,6 +3401,19 @@ a.card:hover {
   content: "문서";
 }
 
+/* kakao는 타입을 더 잘게 준다 */
+.prose a.wikilink[data-etype="brand"]::after {
+  content: "브랜드";
+}
+
+.prose a.wikilink[data-etype="jobTitle"]::after {
+  content: "직함";
+}
+
+.prose a.wikilink[data-etype="ingredient"]::after {
+  content: "성분";
+}
+
 /* ── 채팅 대화 목록 (/chat) ───────────────────────────────────── */
 .chat-convs {
   width: 232px;

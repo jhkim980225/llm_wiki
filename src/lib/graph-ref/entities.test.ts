@@ -93,6 +93,34 @@ describe('cleanEntities', () => {
     ).toEqual([])
   })
 
+  // kakao가 타입을 잘게 나눠 주면서 값·분류가 개체로 올라왔다(실측)
+  it('값·분류 타입은 이름을 보기 전에 버린다', () => {
+    const raw = [
+      { name: '3,234,000원', type: 'amount' },
+      { name: '2025-04-18', type: 'date' },
+      { name: '40개', type: 'quantity' },
+      { name: '031-522-4858', type: 'contact' },
+      { name: '2024년', type: 'period' },
+      { name: '충진', type: 'process' },
+      { name: '용기', type: 'packaging' },
+      { name: '크림', type: 'formulation' },
+      { name: '세금계산서', type: 'documentType' },
+    ]
+    expect(cleanEntities(raw)).toEqual([])
+  })
+
+  it('kakao 실제 응답의 개체는 살린다', () => {
+    const raw = [
+      { name: '주식회사 성진', type: 'organization' },
+      { name: '211-88-58527', type: 'businessNumber' },
+      { name: '김윤서', type: 'person' },
+      { name: '프리미어룩', type: 'brand' },
+      { name: '연구원', type: 'jobTitle' },
+      { name: '시카세럼', type: 'product' },
+    ]
+    expect(cleanEntities(raw)).toHaveLength(6)
+  })
+
   it('진짜 개체는 새 필터를 통과한다', () => {
     const raw = [
       { name: '코바상사', type: 'organization' },

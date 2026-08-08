@@ -13,13 +13,35 @@ export type CleanEntity = { name: string; type: string }
 const MAX_NAME = 60
 
 /**
+ * 개체가 아니라 **값**이거나 **분류 낱말**인 타입 — 문서로 만들 것이 없다.
+ * kakao가 타입을 잘게 나눠 주면서 드러났다(실측 표본):
+ *   amount "3,234,000원" · date "2025-04-18" · quantity "40개" · contact "031-522-4858"
+ *   period "2024년" · process "충진" · packaging "용기" · formulation "크림"
+ *   documentType "세금계산서" — 문서 종류지 특정 문서가 아니다
+ * 이름 패턴으로 거르는 것보다 정확하고 싸다.
+ */
+const NOISE_TYPES = new Set([
+  'amount',
+  'date',
+  'quantity',
+  'contact',
+  'period',
+  'process',
+  'packaging',
+  'formulation',
+  'documentType',
+])
+
+/**
  * 개체가 아니라 문서 안 구조물인 것들 — 표 헤더·폼 필드·분류 낱말.
  * 소스가 엑셀/견적서를 훑다 보니 이런 게 개체로 올라온다(감사 실측, seunghoon).
  */
 const GENERIC = new Set([
-  '원료', '제품', '신원료', '원료명', '제품명', '제품의', '기초제품', '원료단가',
+  '원료', '제품', '신원료', '원료명', '제품의', '기초제품', '원료단가',
   '반품기준', '담당자', '대표이사', '견적서', '발주서', '제품표준서', '양식', '요청',
   '확인', '개발비', '원료비', '비고', '수량', '단가', '금액', '합계', '규격', '용량',
+  // kakao 실측 — 표 헤더가 ingredient/material 타입으로 올라온다
+  '제조원', '항목', '제품명', '제조비', '전성분', '문안',
 ])
 
 /** 비용·수량·파일·시트처럼 개체가 아닌 라인임을 드러내는 흔적. */
@@ -49,6 +71,8 @@ export function cleanEntities(raw: unknown): CleanEntity[] {
     const name = typeof item.name === 'string' ? item.name.trim() : ''
     const type = typeof item.type === 'string' ? item.type.trim() : ''
     if (!name || !type) continue
+    // 값·분류 타입은 이름을 보기 전에 버린다.
+    if (NOISE_TYPES.has(type)) continue
     if (name.length < 2 || name.length > MAX_NAME) continue
     // 문장을 자르다 만 조각 — 닫는 괄호·따옴표가 여는 쪽보다 많으면 개체명이 아니다.
     if (count(name, ')') > count(name, '(') || count(name, '”') > count(name, '“')) continue
