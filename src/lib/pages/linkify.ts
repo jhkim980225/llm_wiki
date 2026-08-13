@@ -5,9 +5,13 @@ import { isNoiseLabel } from '@/lib/graph-ref/graph'
 /**
  * 한 번에 제안할 링크 상한. 상한을 정하는 건 linkifyContent가 아니라 하류다 —
  * 적용한 본문을 저장하면 savePage → syncBacklinks가 새 링크 하나당 순차 왕복 2회를
- * 인터랙티브 트랜잭션(Prisma 기본 5초) 안에서 돈다. 50이면 여유 있고 200이면 도박이다.
+ * 인터랙티브 트랜잭션(Prisma 기본 5초) 안에서 돈다. 200이면 도박이다.
+ *
+ * 50에서 100으로 올렸다: 개체명을 먼저 남기게 바꾼 뒤에도 5KB짜리 주간업무 문서에서
+ * 담당자 한 명(김윤서)이 정확히 경계에 걸려 잘렸다 — 이름이 50개를 넘는 문서가 실재한다.
+ * 100 × 왕복 2회면 5초 안에 넉넉하다. 더 올려야 하면 syncBacklinks를 일괄 쓰기로 바꾼다.
  */
-export const MAX_CANDIDATES = 50
+export const MAX_CANDIDATES = 100
 
 /** 2자 온톨로지 라벨("판매", "값")은 거의 모든 문서에 걸려 쓸 수 없다. */
 export const MIN_TITLE_LENGTH = 3
@@ -46,22 +50,33 @@ export async function proposeLinks(slug: string, content: string): Promise<Propo
   // 문서 없음 화면이 "그래프에서 가져오기"를 띄운다. 새 링크 문법을 만들지 않는 이유가
   // 이것이다 — 죽은 링크 + 기존 화면 분기로 같은 결과가 난다.
   // UNION 결과에는 표현식 ORDER BY를 걸 수 없어(Postgres 0A000) 서브쿼리로 감싼다.
-  const rows = await db.$queryRaw<{ slug: string; title: string; prio: number }[]>`
-    SELECT c.slug, c.title, c.prio FROM (
-      SELECT slug, title, 0 AS prio
-      FROM "Page"
-      WHERE "deletedAt" IS NULL
-        AND slug <> ${slug}
-        AND char_length(title) >= ${MIN_TITLE_LENGTH}
-        AND position(title IN ${content}) > 0
+  // 정렬은 '누가 상한 안에 남느냐'만 정한다 — 링크를 거는 순서(긴 이름 먼저)는
+  // linkifyContent가 스스로 다시 정렬한다.
+  //
+  // **개체명을 먼저 남긴다.** 예전엔 제목 긴 순으로만 잘라서, 본문이 조금만 길어도
+  // 메일 제목·파일명이 50자리를 다 먹고 사람·업체 이름(3글자)이 통째로 밀려났다
+  // (실측: 5KB짜리 주간업무 문서에서 김윤서·김종태·정아라·최담선 넷 다 링크 0건,
+  //  같은 이름을 한 줄짜리 본문에 넣으면 넷 다 걸렸다).
+  // 개체 여부는 GraphRef(대화·시딩으로 모은 개체 등록부)에 이름이 있는가로 본다.
+  const rows = await db.$queryRaw<
+    { slug: string; title: string; prio: number; weight: number; entity: boolean }[]
+  >`
+    SELECT c.slug, c.title, c.prio, c.weight, c.entity FROM (
+      SELECT p.slug, p.title, 0 AS prio, COALESCE(array_length(p."inLinks", 1), 0) AS weight,
+             EXISTS (SELECT 1 FROM "GraphRef" g WHERE g.name = p.title) AS entity
+      FROM "Page" p
+      WHERE p."deletedAt" IS NULL
+        AND p.slug <> ${slug}
+        AND char_length(p.title) >= ${MIN_TITLE_LENGTH}
+        AND position(p.title IN ${content}) > 0
       UNION ALL
-      SELECT "pageSlug" AS slug, name AS title, 1 AS prio
+      SELECT "pageSlug" AS slug, name AS title, 1 AS prio, 0 AS weight, true AS entity
       FROM "GraphRef"
       WHERE "pageSlug" <> ${slug}
         AND char_length(name) >= ${MIN_TITLE_LENGTH}
         AND position(name IN ${content}) > 0
     ) c
-    ORDER BY char_length(c.title) DESC, c.prio
+    ORDER BY c.entity DESC, char_length(c.title) DESC, c.prio
     LIMIT ${MAX_CANDIDATES}`
 
   // 제목이 겹치면 같은 소스 것을 고르고, 그래도 하나로 안 좁혀지면 버린다.
@@ -84,9 +99,27 @@ export async function proposeLinks(slug: string, content: string): Promise<Propo
   const grouped = new Map<string, string[]>()
   for (const r of candidates) grouped.set(r.title, [...(grouped.get(r.title) ?? []), r.slug])
 
+  // 같은 이름이 여러 소스에 있는 것은 동명이인만이 아니다 — 같은 사람·업체가 이메일에도
+  // 카톡에도 기록돼 있다(실측 정아라: ejkim 6,189 백링크 · kakao 5,733). 예전엔 이 경우를
+  // 전부 포기해서 거래처·담당자에 링크가 하나도 안 걸렸다.
+  // 우선순위: ① 같은 소스 → ② 연결이 가장 많은 문서(그 이름으로 가장 많이 참조되는 기록).
+  // 1등이 2등과 같으면 고를 근거가 없으니 그대로 포기한다.
+  const weightOf = new Map(candidates.map((r) => [r.slug, r.weight]))
+  const richest = (slugs: string[]): string[] => {
+    const sorted = [...slugs].sort(
+      (a, b) => (weightOf.get(b) ?? 0) - (weightOf.get(a) ?? 0) || a.localeCompare(b),
+    )
+    return (weightOf.get(sorted[0]) ?? 0) > (weightOf.get(sorted[1]) ?? 0) ? [sorted[0]] : sorted
+  }
+
   const refs: LinkRef[] = []
   for (const [matchText, slugs] of grouped) {
-    const narrowed = slugs.length > 1 ? slugs.filter((s) => sourceOf(s) === mine) : slugs
+    let narrowed = slugs
+    if (narrowed.length > 1) {
+      const sameSource = narrowed.filter((s) => sourceOf(s) === mine)
+      narrowed = sameSource.length > 0 ? sameSource : narrowed
+    }
+    if (narrowed.length > 1) narrowed = richest(narrowed)
     if (narrowed.length === 1) refs.push({ slug: narrowed[0], matchText })
   }
 

@@ -92,12 +92,28 @@ async function searchWiki(terms: string[]): Promise<WikiHit[]> {
   return [...seen.values()]
 }
 
+/**
+ * 개수로 실행을 죽이지 않는다.
+ * - 5개 초과: 앞에서 자른다 (지시가 길면 LLM이 6~7개를 준다)
+ * - 0개: 그대로 통과시킨다. 예전엔 `.min(1)`이라 FLOW가 통째로 실패했다
+ *   (실측 2026-08-08 "terms: Array must contain at least 1"). 검색어는 그래프·위키
+ *   검색에만 쓰고, 소스 RAG API는 질문 원문을 따로 받으므로 근거가 사라지지 않는다.
+ */
+export function normalizeTerms(raw: string[]): string[] {
+  const seen = new Set<string>()
+  for (const t of raw) {
+    const s = typeof t === 'string' ? t.trim() : ''
+    if (s) seen.add(s)
+    if (seen.size >= 5) break
+  }
+  return [...seen]
+}
+
 const TermsSchema = z.object({
   terms: z
     .array(z.string())
-    .min(1)
-    .max(5)
-    .describe('그래프에서 찾을 핵심 용어. 고유명사·물질명 위주로, 조사와 수식어는 뺀다.'),
+    .transform(normalizeTerms)
+    .describe('그래프에서 찾을 핵심 용어. 고유명사·물질명 위주로, 조사와 수식어는 뺀다. 최대 5개.'),
 })
 
 export type ComposeResult = {

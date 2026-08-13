@@ -5,6 +5,7 @@ import {
   stripEmailRefs,
   interleaveBySource,
   expandDateTerms,
+  normalizeTerms,
 } from './compose'
 
 describe('expandDateTerms', () => {
@@ -110,5 +111,20 @@ describe('splitDoc', () => {
   it('나누기 전에 인라인 출처를 걷어낸다', () => {
     const d = splitDoc('# 제목\n\n내용 [ejkim] 이다.', 'x')
     expect(d.content).not.toContain('[ejkim]')
+  })
+})
+
+describe('normalizeTerms', () => {
+  // 실측 2026-08-08: 모델이 terms를 0개로 줘서 FLOW 실행이 통째로 실패했다.
+  it('0개도 통과시킨다 — 근거는 소스 RAG API가 따로 가져온다', () => {
+    expect(normalizeTerms([])).toEqual([])
+  })
+
+  it('5개까지만 남긴다', () => {
+    expect(normalizeTerms(['a', 'b', 'c', 'd', 'e', 'f', 'g'])).toEqual(['a', 'b', 'c', 'd', 'e'])
+  })
+
+  it('공백·중복은 버린다', () => {
+    expect(normalizeTerms([' 정아라 ', '', '   ', '정아라', '성진'])).toEqual(['정아라', '성진'])
   })
 })

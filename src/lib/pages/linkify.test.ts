@@ -70,6 +70,51 @@ describe('proposeLinks', () => {
     expect(r.added).toEqual([{ slug: 'ejkim/미생물', title: '미생물' }])
   })
 
+  // 같은 사람·업체가 이메일에도 카톡에도 기록돼 있다(실측 정아라: ejkim 6,189 · kakao 5,733).
+  // 소스로 못 좁히면 연결이 많은 쪽이 본체다.
+  it('소스로 못 좁히면 연결이 가장 많은 문서로 잇는다', async () => {
+    await db.page.create({
+      data: { slug: 'ejkim/정아라', title: '정아라', content: '', outLinks: [], inLinks: ['a', 'b', 'c'] },
+    })
+    await db.page.create({
+      data: { slug: 'kakao/정아라', title: '정아라', content: '', outLinks: [], inLinks: ['a'] },
+    })
+    await seed('here', '이 문서')
+
+    const r = await proposeLinks('here', '정아라 연구원이 회신했다')
+
+    expect(r.added).toEqual([{ slug: 'ejkim/정아라', title: '정아라' }])
+  })
+
+  it('연결 수가 같으면 고를 근거가 없어 버린다', async () => {
+    await seed('ejkim/동명', '동명업체')
+    await seed('kakao/동명', '동명업체')
+    await seed('here', '이 문서')
+
+    const r = await proposeLinks('here', '동명업체 이야기')
+
+    expect(r.changed).toBe(false)
+  })
+
+  // 실측: 5KB짜리 주간업무 문서에서 담당자 4명이 전부 링크 0건이었다.
+  // 긴 제목(메일 제목·파일명)이 후보 상한을 다 먹어 3글자 이름이 밀려난 것.
+  it('긴 제목이 많아도 개체명은 후보 자리를 지킨다', async () => {
+    for (let i = 0; i < 60; i++) {
+      await seed(`long-${i}`, `아주 긴 문서 제목 ${String(i).padStart(3, '0')} 견적서 송부의 건`)
+    }
+    await seed('ejkim/정아라', '정아라')
+    await seedRef('정아라', 'ejkim/정아라')
+    await seed('here', '이 문서')
+
+    const body =
+      Array.from({ length: 60 }, (_, i) => `아주 긴 문서 제목 ${String(i).padStart(3, '0')} 견적서 송부의 건`).join('\n') +
+      '\n담당자: 정아라'
+
+    const r = await proposeLinks('here', body)
+
+    expect(r.added.map((a) => a.slug)).toContain('ejkim/정아라')
+  })
+
   it('같은 소스에도 동명이 둘이면 여전히 버린다', async () => {
     await seed('ejkim/협회', '무역협회')
     await seed('ejkim/협회-2', '무역협회')

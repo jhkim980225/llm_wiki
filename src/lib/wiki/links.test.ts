@@ -194,3 +194,38 @@ describe('sanitizeWikiLinks', () => {
     expect(sanitizeWikiLinks(input, valid)).toBe('멀쩡: [[a]]\n잘림: seunghoon/뭔가')
   })
 })
+
+describe('표 칸 링크', () => {
+  const refs = [
+    { slug: 'kakao/정아라', matchText: '정아라' },
+    { slug: 'ejkim/김종태', matchText: '김종태' },
+  ]
+
+  it('칸 전체가 이름인 칸은 매 줄 링크한다', () => {
+    const md = [
+      '| 날짜 | 담당자 | 내용 |',
+      '|---|---|---|',
+      '| 07-27 | 정아라 | 검수 |',
+      '| 07-28 | 정아라 | 발주 |',
+      '| 07-29 | 김종태 | 회신 |',
+    ].join('\n')
+
+    const r = linkifyContent(md, refs, 'here')
+
+    expect(r.content).toContain('| [[kakao/정아라|정아라]] | 검수 |')
+    expect((r.content.match(/\[\[kakao\/정아라\|/g) ?? [])).toHaveLength(2)
+    expect(r.content).toContain('[[ejkim/김종태|김종태]]')
+  })
+
+  it('문장이 든 칸은 건드리지 않는다 — 첫 출현 규칙에 맡긴다', () => {
+    const md = '| 담당 | 내용 |\n|---|---|\n| 최담선 | 정아라 연구원이 회신함 |'
+    const r = linkifyContent(md, [{ slug: 'kakao/정아라', matchText: '정아라' }], 'here')
+    // 첫 출현 규칙으로 한 번만 걸린다(칸 전체가 이름이 아니므로 칸 규칙은 안 탄다)
+    expect((r.content.match(/\[\[kakao\/정아라\|/g) ?? [])).toHaveLength(1)
+  })
+
+  it('코드 펜스 안의 표는 손대지 않는다', () => {
+    const md = '```\n| 담당자 |\n|---|\n| 정아라 |\n```'
+    expect(linkifyContent(md, refs, 'here').content).toBe(md)
+  })
+})

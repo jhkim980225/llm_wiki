@@ -204,7 +204,53 @@ export function linkifyContent(
     linkedSlugs = recomputed.linkedSlugs
   }
 
-  return { content: out, changed }
+  const cells = linkifyTableCells(out, ordered)
+  return { content: cells.content, changed: changed || cells.changed }
+}
+
+/**
+ * 표에서 **칸 전체가 개체 이름인 칸**은 모두 링크한다.
+ *
+ * 본문 규칙은 '첫 출현 한 번'이다 — 문장 안에서는 그게 맞다. 그런데 담당자·거래처처럼
+ * 한 칸에 이름만 들어가는 열은 같은 이름이 열 번 나오고, 첫 줄만 링크되면 나머지 아홉 줄은
+ * 왜 안 걸렸는지 알 수 없다(실측: 주간업무 일자별 표).
+ *
+ * 칸 내용이 이름과 **정확히 같을 때만** 건다. 문장이 든 칸은 위 규칙에 맡긴다.
+ */
+function linkifyTableCells(
+  content: string,
+  refs: LinkRef[],
+): { content: string; changed: boolean } {
+  if (refs.length === 0) return { content, changed: false }
+  const bySlug = new Map(refs.map((r) => [r.matchText, r.slug]))
+  let changed = false
+
+  const lines = content.split(/\r?\n/)
+  let inFence = false
+  const out = lines.map((line) => {
+    if (/^\s*```/.test(line)) inFence = !inFence
+    if (inFence || !line.trimStart().startsWith('|')) return line
+
+    // 첫 칸과 끝 칸은 파이프 바깥의 빈 조각이라 그대로 둔다.
+    const parts = line.split('|')
+    let hit = false
+    const next = parts.map((cell, i) => {
+      if (i === 0 || i === parts.length - 1) return cell
+      const text = cell.trim()
+      const slug = bySlug.get(text)
+      if (!slug) return cell
+      hit = true
+      // 칸의 원래 여백을 지켜 표 모양이 흔들리지 않게 한다.
+      const lead = cell.slice(0, cell.indexOf(text))
+      const tail = cell.slice(cell.indexOf(text) + text.length)
+      return `${lead}[[${slug}|${text}]]${tail}`
+    })
+    if (!hit) return line
+    changed = true
+    return next.join('|')
+  })
+
+  return { content: out.join('\n'), changed }
 }
 
 /** rename 시 [[oldSlug]] / [[oldSlug|표시명]]의 slug 부분만 newSlug로 바꾼다. */

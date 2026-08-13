@@ -145,6 +145,18 @@ const isClassName = (s: string) => !!s && !/\s/.test(s) && /^[A-Za-z]+$/.test(s)
 const radius = (degree: number) => 13 + Math.min(9, degree)
 
 /**
+ * 노드 라벨 길이 상한.
+ *
+ * kakao는 카톡 한 줄을 통째로 개체 라벨로 만든다(200자 넘는 문장이 흔하다).
+ * 그대로 그리면 라벨끼리 겹쳐 못 읽는 것은 물론, 3배까지 확대했을 때 SVG 텍스트가
+ * 수만 px짜리 레이어가 되어 **렌더러 프로세스가 죽는다**
+ * ("This page couldn't load" — JS 힙은 10MB로 멀쩡한데 탭이 통째로 내려간다. 실측 재현).
+ * 전체 이름은 <title>(마우스 올리면 뜸)과 인스펙터에 그대로 남는다.
+ */
+const MAX_LABEL = 24
+const shortLabel = (s: string) => (s.length > MAX_LABEL ? s.slice(0, MAX_LABEL - 1) + '…' : s)
+
+/**
  * 개체 하나를 중심으로 한 1홉 관계 그래프.
  *
  * 문서 전체 그래프(GraphView)와 따로 두는 이유: 저쪽은 /api/graph 전량 조회와
@@ -158,6 +170,8 @@ const radius = (degree: number) => 13 + Math.min(9, degree)
 export function EntityGraph({ slug }: { slug: string }) {
   const wrapRef = useRef<HTMLDivElement>(null)
   const svgRef = useRef<SVGSVGElement>(null)
+  /** 드래그 중 transform을 직접 갈아 끼울 대상 */
+  const gRef = useRef<SVGGElement>(null)
 
   const [data, setData] = useState<EgoData | null>(null)
   const [rel, setRel] = useState<string | null>(null)
@@ -242,6 +256,8 @@ export function EntityGraph({ slug }: { slug: string }) {
   }, [data])
 
   const drag = useRef<{ x: number; y: number } | null>(null)
+  /** 끄는 동안의 위치. 손을 뗄 때 이 값만 상태로 넣는다(위 onPointerMove 주석 참조). */
+  const pan = useRef<{ x: number; y: number } | null>(null)
 
   const zoom = (f: number) => {
     const el = wrapRef.current
@@ -377,12 +393,24 @@ export function EntityGraph({ slug }: { slug: string }) {
             drag.current = { x: e.clientX - t.x, y: e.clientY - t.y }
             e.currentTarget.setPointerCapture(e.pointerId)
           }}
+          /* 끄는 동안에는 상태를 건드리지 않고 <g>의 transform만 직접 바꾼다.
+             setT를 이동마다 부르면 문서 전체(적재본은 DOM 2만 개)가 매번 다시 계산돼
+             렌더러 프로세스가 죽는다 — 실측: 한 번의 드래그에 이동 180회면 탭이 내려간다
+             ("This page couldn't load"). 확정 값은 손을 뗄 때 한 번만 넣는다. */
           onPointerMove={(e) => {
             if (!drag.current) return
-            setT((prev) => ({ ...prev, x: e.clientX - drag.current!.x, y: e.clientY - drag.current!.y }))
+            const x = e.clientX - drag.current.x
+            const y = e.clientY - drag.current.y
+            pan.current = { x, y }
+            gRef.current?.setAttribute('transform', `translate(${x} ${y}) scale(${t.k})`)
           }}
           onPointerUp={() => {
             drag.current = null
+            if (pan.current) {
+              const { x, y } = pan.current
+              pan.current = null
+              setT((prev) => ({ ...prev, x, y }))
+            }
           }}
           onClick={(e) => {
             if (!(e.target as Element).closest('.gnode')) setSelected(null)
@@ -390,7 +418,7 @@ export function EntityGraph({ slug }: { slug: string }) {
           role="img"
           aria-label={`${data.name} 관계 그래프`}
         >
-          <g transform={`translate(${t.x} ${t.y}) scale(${t.k})`}>
+          <g ref={gRef} transform={`translate(${t.x} ${t.y}) scale(${t.k})`}>
             {data.edges.map((e) => {
               const a = pos[e.source]
               const b = pos[e.target]
@@ -421,7 +449,8 @@ export function EntityGraph({ slug }: { slug: string }) {
                   onClick={() => setSelected(n.slug)}
                 >
                   <circle r={r} />
-                  <text y={r + 14}>{n.title}</text>
+                  <title>{n.title}</title>
+                  <text y={r + 14}>{shortLabel(n.title)}</text>
                 </g>
               )
             })}
@@ -469,8 +498,11 @@ export function EntityGraph({ slug }: { slug: string }) {
         </div>
       </div>
 
-      {/* 우측 패널 — 그래프 응답만으로 그릴 수 있는 것을 위에, 문서 조회가 필요한 것을 아래에.
-          1MB짜리 문서를 기다리는 동안에도 패널이 비지 않는다. */}
+      {/* 우측 패널 — **노드를 고른 뒤에만** 연다. 늘 떠 있으면 중심 개체 카드가
+          화면 폭을 차지해 정작 그래프가 좁아진다. 안에서는 그래프 응답만으로 그릴 수
+          있는 것을 위에, 문서 조회가 필요한 것을 아래에 둔다(1MB짜리 문서를 기다리는
+          동안에도 패널이 비지 않게). */}
+      {selected && (
       <aside className="graph-inspector" aria-label="개체 상세">
         <div className="head">
           <span className="ic">
@@ -531,8 +563,10 @@ export function EntityGraph({ slug }: { slug: string }) {
               </div>
             )}
 
-            {!selected && data.nodes.length > 1 && (
-              <p className="hint">노드를 선택하면 그 개체의 상세가 표시됩니다.</p>
+            {/* 패널은 노드를 골라야 열리므로 여기 오면 중심을 고른 것이다 —
+                이웃을 누르면 무엇이 보이는지만 알려 준다. */}
+            {isCenter && data.nodes.length > 1 && (
+              <p className="hint">다른 노드를 누르면 그 개체의 상세가 표시됩니다.</p>
             )}
           </>
         ) : (
@@ -627,6 +661,7 @@ export function EntityGraph({ slug }: { slug: string }) {
           </a>
         </div>
       </aside>
+      )}
     </div>
   )
 }
