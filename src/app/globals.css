@@ -897,7 +897,8 @@ kbd {
 
 /* FLOW 실행 상세 — 결과 문서가 어떤 지시문으로 나왔는지 먼저 보여 준다. */
 .flow-detail {
-  max-width: 620px;
+  /* modal-card의 width: min(430px, …)를 이겨야 한다 — max-width는 안 먹힌다(실측) */
+  width: min(680px, 92vw);
 }
 
 /* .head의 가로 정렬은 .link-preview에만 걸려 있어 여기서 따로 준다 */
