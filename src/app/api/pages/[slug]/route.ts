@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { savePage, VersionConflictError } from '@/lib/pages/save'
 import { embedPageSafe } from '@/lib/pages/embedding'
 import { parseOutLinks } from '@/lib/wiki/links'
+import { needsBrief } from '@/lib/pages/brief'
 
 /** [...slug] 없이 슬래시 포함 slug를 다루기 위해 경로 조각은 URL 인코딩된 채로 온다. */
 const decode = (s: string) => decodeURIComponent(s)
@@ -59,8 +60,17 @@ export async function GET(_: Request, { params }: { params: Promise<{ slug: stri
     .map((r) => ({ slug: r.pageSlug, type: r.type }))
 
   // inLinks(수천 개 배열)는 화면이 안 쓴다 — backlinks로 대체된 원본이라 응답에서 뺀다.
-  const { inLinks: _inLinks, ...rest } = page
-  return NextResponse.json({ ...rest, outLinks, backlinks, backlinkTotal, deadLinks, entityLinks })
+  // briefHash도 뺀다 — 화면은 '다시 만들어야 하나'만 알면 되고, 판정은 서버가 한다.
+  const { inLinks: _inLinks, briefHash: _briefHash, ...rest } = page
+  return NextResponse.json({
+    ...rest,
+    outLinks,
+    backlinks,
+    backlinkTotal,
+    deadLinks,
+    entityLinks,
+    briefStale: page.lastEditSource === 'ontology' && needsBrief(page),
+  })
 }
 
 export async function PUT(req: Request, { params }: { params: Promise<{ slug: string }> }) {

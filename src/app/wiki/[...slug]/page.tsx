@@ -43,7 +43,8 @@ export default function WikiPage({ params }: { params: Promise<{ slug: string[] 
   const [editing, setEditing] = useState(false)
   const [showRevisions, setShowRevisions] = useState(false)
   const [chatOpen, setChatOpen] = useState(false)
-  const [graphOpen, setGraphOpen] = useState(false)
+  // 개체 문서는 기본이 분할(좌 문서·우 그래프). 버튼이 분할 ↔ 전체를 오간다.
+  const [graphMode, setGraphMode] = useState<'split' | 'full'>('split')
   const [ref, setRef] = useState<GraphRef | null>(null)
   const [promoting, setPromoting] = useState(false)
   const [promoteError, setPromoteError] = useState('')
@@ -70,7 +71,7 @@ export default function WikiPage({ params }: { params: Promise<{ slug: string[] 
   // 이 slug에 걸린 그래프 개체 참조. 문서 없음 화면의 분기와 [그래프] 토글 노출을 가른다.
   useEffect(() => {
     let stale = false
-    setGraphOpen(false)
+    setGraphMode('split')
     setPromoteError('')
     fetch(`/api/graph-ref?slug=${encodeURIComponent(slug)}`)
       .then((r) => (r.ok ? r.json() : { ref: null }))
@@ -131,6 +132,10 @@ export default function WikiPage({ params }: { params: Promise<{ slug: string[] 
     }
   }
 
+  // GraphRef가 있거나(대화 수집·시딩) 적재본 개체 문서면 그래프를 그릴 수 있다 —
+  // 온톨로지 적재본은 전부 그래프의 개체라 참조 행 유무와 무관하다.
+  const hasGraph = !!page && (!!ref || page.pageType === 'entity')
+
   return (
     <>
       <div className="tabbar">
@@ -154,13 +159,11 @@ export default function WikiPage({ params }: { params: Promise<{ slug: string[] 
           ))}
         </span>
         <span className="side">
-          {/* GraphRef가 있거나(대화 수집·시딩) 적재본 개체 문서면 그래프를 볼 수 있다 —
-              온톨로지 적재본은 전부 그래프의 개체라 참조 행 유무와 무관하다. */}
-          {page && !editing && (ref || page.pageType === 'entity') && (
+          {page && !editing && hasGraph && (
             <button
-              className={graphOpen ? 'quiet on' : 'quiet'}
-              onClick={() => setGraphOpen((v) => !v)}
-              title="개체 관계 그래프"
+              className={graphMode === 'full' ? 'quiet on' : 'quiet'}
+              onClick={() => setGraphMode((m) => (m === 'full' ? 'split' : 'full'))}
+              title={graphMode === 'full' ? '문서와 나란히 보기' : '그래프 전체 보기'}
             >
               <Waypoints size={13} aria-hidden /> 그래프
             </button>
@@ -228,10 +231,10 @@ export default function WikiPage({ params }: { params: Promise<{ slug: string[] 
 
         {!missing && !page && <div className="empty">불러오는 중…</div>}
 
-        {page && !editing && graphOpen && <EntityGraph slug={slug} />}
+        {page && !editing && hasGraph && graphMode === 'full' && <EntityGraph slug={slug} />}
 
         {page &&
-          !graphOpen &&
+          !(hasGraph && graphMode === 'full' && !editing) &&
           (editing ? (
             <PageEditor
               page={page}
@@ -253,6 +256,13 @@ export default function WikiPage({ params }: { params: Promise<{ slug: string[] 
           </div>
         )}
       </div>
+
+      {/* 기본(분할) — 왼쪽 .doc(문서)은 그대로 두고 오른쪽 반을 그래프가 가져간다 */}
+      {page && !editing && hasGraph && graphMode === 'split' && (
+        <div className="graph-split">
+          <EntityGraph slug={slug} />
+        </div>
+      )}
 
       {/* key={slug} — 문서를 옮기면 대화가 통째로 초기화된다 */}
       {chatOpen && page && !editing && (
