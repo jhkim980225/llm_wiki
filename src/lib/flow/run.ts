@@ -58,7 +58,8 @@ export async function runFlow(input: RunFlowInput): Promise<RunFlowResult> {
     `오늘 날짜: ${today}\n` +
     `아래 [양식]을 반드시 그대로 따라 작성하라 — 제목·표·항목 구조를 유지하고, 자리표시자를 실제 내용으로 채운다.\n` +
     `위 지시문에 적힌 정보(작성자·부서·날짜·금액·사유 등)는 확인된 사실이다 — 그대로 채워 넣고 "확인되지 않음"으로 비우지 마라.\n` +
-    `자리표시자의 예시 값(홍길동, YYYY-MM-DD, 000-0000 등)은 남기지 말고, 지시·근거 어디에도 없는 칸만 비워 둔다.\n\n` +
+    `자리표시자의 예시 값(홍길동, YYYY-MM-DD, 000-0000 등)은 남기지 말고, 지시·근거 어디에도 없는 칸만 비워 둔다.\n` +
+    '양식에 ```plantuml 코드 블록이 있으면 결과에도 그대로 유지하라 — @startgantt/@endgantt 등 블록 구조와 문법은 바꾸지 말고, 작업명·날짜·기간·note 내용 같은 값만 지시·근거에 맞게 채운다.\n\n' +
     `[양식: ${template.title}]\n${template.content}`
 
   const terms = await extractTerms(input.instruction)

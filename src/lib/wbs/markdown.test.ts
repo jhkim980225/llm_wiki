@@ -33,9 +33,15 @@ describe('parseWbsMarkdown', () => {
       startDate: '2026-04-15',
       endDate: '2026-04-20',
       durationDays: 6,
+      progress: null,
     })
     expect(t[1].assignee).toBe('유진')
     expect(t[1].startDate).toBe('2026-04-20')
+  })
+
+  it("'진행' 열이 있으면 퍼센트를 숫자로 읽는다", () => {
+    const t = parseWbsMarkdown(`| WBS | 업무내용 | 진행 |\n| - | - | - |\n| 1.1 | 출고 | 40% |`)
+    expect(t[0].progress).toBe(40)
   })
 
   it('표가 없으면 빈 배열', () => {
@@ -69,5 +75,18 @@ describe('dateRange', () => {
   })
   it('cap으로 폭주 방지', () => {
     expect(dateRange('2026-01-01', '2026-12-31', 10)).toHaveLength(10)
+  })
+})
+
+describe('칸 나누기 예외', () => {
+  it('[[slug|표시명]]의 파이프는 칸을 나누지 않는다', () => {
+    const md = `| WBS | 업무내용 | 담당자 | 시작일 |
+| - | - | - | - |
+| 3.1 | 단가 계산 및 [[seunghoon/제조원가표|제조원가표]] 정리 | 정아라 | 2026-08-03 |`
+    const t = parseWbsMarkdown(md)
+    expect(t).toHaveLength(1)
+    expect(t[0].title).toBe('단가 계산 및 [[seunghoon/제조원가표|제조원가표]] 정리')
+    expect(t[0].assignee).toBe('정아라')
+    expect(t[0].startDate).toBe('2026-08-03')
   })
 })

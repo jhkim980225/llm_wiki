@@ -1,7 +1,8 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { CalendarRange, Play, Plus, Trash2, Workflow } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { CalendarRange, ExternalLink, Play, Plus, Trash2, Workflow, X } from 'lucide-react'
 import { toast } from '@/lib/toast'
 
 type Run = {
@@ -39,6 +40,11 @@ const fmt = (iso: string | null) =>
 export default function FlowPage() {
   const [flows, setFlows] = useState<Flow[]>([])
   const [templates, setTemplates] = useState<TemplateDoc[]>([])
+  const [folders, setFolders] = useState<string[]>([])
+  // 실행 결과를 누르면 어떤 지시문으로 만들어진 문서인지 먼저 보여 준다 —
+  // 목록만으로는 "이 문서가 왜 이렇게 나왔나"를 알 수 없다.
+  const [detail, setDetail] = useState<{ flow: Flow; run: Run } | null>(null)
+  const router = useRouter()
   const [busy, setBusy] = useState<string | null>(null) // 실행 중인 flow id
   const [form, setForm] = useState({
     title: '',
@@ -55,9 +61,11 @@ export default function FlowPage() {
   }
 
   // 템플릿 후보 — '템플릿' 폴더 안 문서들. 폴더가 없으면 빈 목록(직접 입력).
+  // 저장 폴더 후보도 같은 응답에서 얻는다 — 오타로 새 폴더가 생기는 것을 막는다.
   const loadTemplates = async () => {
     try {
       const folders = (await (await fetch('/api/folders')).json()).items as { id: string; name: string }[]
+      setFolders([...new Set(folders.map((f) => f.name))])
       const tpl = folders.find((f) => f.name === '템플릿')
       if (!tpl) return
       // tree API의 파라미터는 folderId다 — parentId로 불렀더니 루트 문서가
@@ -177,12 +185,29 @@ export default function FlowPage() {
                   aria-label="템플릿 문서 slug"
                 />
               )}
-              <input
-                value={form.targetFolderName}
-                onChange={(e) => setForm({ ...form, targetFolderName: e.target.value })}
-                placeholder="저장 폴더 이름 (예: 주간업무)"
-                aria-label="저장 폴더"
-              />
+              {/* 폴더는 고르게 한다 — 직접 입력이면 오타 하나가 새 폴더를 만든다
+                  (resolveFolder가 없는 이름을 만들어 준다). 목록을 못 받으면 입력으로 남긴다. */}
+              {folders.length > 0 ? (
+                <select
+                  value={form.targetFolderName}
+                  onChange={(e) => setForm({ ...form, targetFolderName: e.target.value })}
+                  aria-label="저장 폴더"
+                >
+                  <option value="">저장 폴더 선택 (미지정 시 최상위)</option>
+                  {folders.map((name) => (
+                    <option key={name} value={name}>
+                      {name}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  value={form.targetFolderName}
+                  onChange={(e) => setForm({ ...form, targetFolderName: e.target.value })}
+                  placeholder="저장 폴더 이름 (예: 주간업무)"
+                  aria-label="저장 폴더"
+                />
+              )}
             </div>
             <div className="row">
               <label className="meta">매주</label>
@@ -251,7 +276,9 @@ export default function FlowPage() {
                     <span key={r.id} className={`run ${r.status}`}>
                       <CalendarRange size={11} aria-hidden /> {fmt(r.startedAt)}{' '}
                       {r.status === 'done' && r.resultSlug ? (
-                        <a href={`/wiki/${r.resultSlug}`}>{r.resultSlug}</a>
+                        <button className="link" onClick={() => setDetail({ flow: f, run: r })}>
+                          {r.resultSlug}
+                        </button>
                       ) : r.status === 'error' ? (
                         `실패: ${(r.error ?? '').slice(0, 60)}`
                       ) : (
@@ -265,6 +292,61 @@ export default function FlowPage() {
           ))}
         </div>
       </div>
+
+      {detail && (
+        <div className="modal" onMouseDown={(e) => e.target === e.currentTarget && setDetail(null)}>
+          <div className="modal-card flow-detail">
+            <div className="head">
+              <h3 style={{ margin: 0 }}>{detail.flow.title}</h3>
+              <span className="grow" />
+              <button className="icon" aria-label="닫기" onClick={() => setDetail(null)}>
+                <X size={14} />
+              </button>
+            </div>
+
+            <dl className="attrs">
+              <div>
+                <dt>지시문</dt>
+                <dd className="prompt">{detail.flow.prompt}</dd>
+              </div>
+              <div>
+                <dt>템플릿</dt>
+                <dd>{detail.flow.templateSlug}</dd>
+              </div>
+              <div>
+                <dt>저장 폴더</dt>
+                <dd>{detail.flow.targetFolderName ?? '(미지정 — 최상위)'}</dd>
+              </div>
+              <div>
+                <dt>주기</dt>
+                <dd>
+                  매주 {WEEKDAYS[detail.flow.scheduleWeekday]}요일 {detail.flow.scheduleHour}시
+                  {detail.flow.enabled ? '' : ' (중지됨)'}
+                </dd>
+              </div>
+              <div>
+                <dt>이 실행</dt>
+                <dd>
+                  {fmt(detail.run.startedAt)} · {detail.run.trigger === 'manual' ? '수동' : '스케줄'}
+                </dd>
+              </div>
+              <div>
+                <dt>결과 문서</dt>
+                <dd className="uri">{detail.run.resultSlug}</dd>
+              </div>
+            </dl>
+
+            <div className="buttons">
+              <button className="quiet" onClick={() => setDetail(null)}>
+                닫기
+              </button>
+              <button className="primary" onClick={() => router.push(`/wiki/${detail.run.resultSlug}`)}>
+                <ExternalLink size={13} aria-hidden /> 문서로 가기
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   )
 }

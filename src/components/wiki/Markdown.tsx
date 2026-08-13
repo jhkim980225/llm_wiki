@@ -5,6 +5,9 @@ import { marked } from 'marked'
 import DOMPurify from 'dompurify'
 import { ExternalLink, X } from 'lucide-react'
 import { wikiLinksToHtml } from '@/lib/wiki/render'
+import { plantumlToHtml } from '@/lib/wiki/plantuml'
+import { wbsBlocksToHtml } from '@/lib/wiki/wbs-grid'
+import { collapseSections } from '@/lib/wiki/collapse'
 import { parseOutLinks } from '@/lib/wiki/links'
 import { digest } from '@/lib/wiki/digest'
 import { stripBasePath } from '@/lib/wiki/href'
@@ -59,9 +62,12 @@ export function Markdown({
   )
 
   useEffect(() => {
-    const withLinks = wikiLinksToHtml(content, existing, entityTypes)
+    // plantuml 펜스를 먼저 <img>로 — 위키링크 치환이 다이어그램 텍스트를 건드리지 않게.
+    // wbs 격자는 반대로 위키링크 앞에 둔다 — 업무명 안의 [[링크]]가 그대로 살아야 한다.
+    const withLinks = wikiLinksToHtml(wbsBlocksToHtml(plantumlToHtml(content)), existing, entityTypes)
     Promise.resolve(marked.parse(withLinks)).then((parsed) => {
-      setHtml(DOMPurify.sanitize(parsed, { ADD_ATTR: ['class', 'data-etype'] }))
+      // 정화 뒤에 접는다 — details로 감싼 안쪽은 marked가 원시 HTML로 통과시킨다.
+      setHtml(collapseSections(DOMPurify.sanitize(parsed, { ADD_ATTR: ['class', 'data-etype'] })))
     })
   }, [content, existing, entityTypes])
 

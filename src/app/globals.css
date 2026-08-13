@@ -849,6 +849,414 @@ kbd {
   background: none;
 }
 
+/* 접이식 절(참고 등) — h2 자리를 대신하므로 제목 규격을 그대로 따른다.
+   기본은 접힘. 근거 목록이 길어 본문 끝이 링크로 덮이는 것을 막는다. */
+.prose details {
+  margin: 40px 0 16px;
+  border-top: 1px solid var(--line);
+  padding-top: 12px;
+}
+
+.prose details > summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  list-style: none;
+  color: var(--text);
+  font-size: 18px;
+  font-weight: 650;
+}
+
+.prose details > summary::-webkit-details-marker {
+  display: none;
+}
+
+/* 삼각형은 CSS로 — 이모지·아이콘 폰트를 쓰지 않는다(design.md) */
+.prose details > summary::before {
+  content: '';
+  width: 0;
+  height: 0;
+  border-left: 5px solid var(--text-dim);
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+  transition: transform 140ms;
+}
+
+.prose details[open] > summary::before {
+  transform: rotate(90deg);
+}
+
+.prose details > summary:hover {
+  color: var(--accent);
+}
+
+.prose details > *:not(summary) {
+  margin-top: 12px;
+}
+
+/* FLOW 실행 상세 — 결과 문서가 어떤 지시문으로 나왔는지 먼저 보여 준다. */
+.flow-detail {
+  max-width: 620px;
+}
+
+/* .head의 가로 정렬은 .link-preview에만 걸려 있어 여기서 따로 준다 */
+.flow-detail .head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.flow-detail .attrs {
+  margin: 8px 0 0;
+  display: grid;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.flow-detail .attrs > div {
+  display: grid;
+  grid-template-columns: 84px 1fr;
+  gap: 10px;
+  align-items: baseline;
+}
+
+.flow-detail .attrs dt {
+  color: var(--text-faint);
+  font-size: 12px;
+}
+
+.flow-detail .attrs dd {
+  margin: 0;
+  color: var(--text-body);
+  overflow-wrap: anywhere;
+}
+
+/* 지시문은 길고 줄바꿈이 의미를 갖는다 — 그대로 보이되 너무 길면 스크롤 */
+.flow-detail .attrs dd.prompt {
+  max-height: 220px;
+  overflow-y: auto;
+  padding: 8px 10px;
+  border-radius: var(--r);
+  background: var(--main-bg);
+  white-space: pre-wrap;
+  font-size: 12.5px;
+  line-height: 1.55;
+}
+
+/* 목록 안에서 문서를 여는 자리 — 앵커가 아니라 상세를 먼저 띄우는 버튼 */
+button.link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  cursor: pointer;
+}
+
+button.link:hover {
+  text-decoration: underline;
+}
+
+/* 적재본 요약 — 관계 카드 위. 문장 요약이라 카드로 가두지 않고 좌측 띠로만 표시한다. */
+.doc-brief {
+  margin: 0 0 24px;
+  padding: 2px 0 2px 14px;
+  border-left: 2px solid var(--accent);
+}
+
+/* 제목·본문 크기는 본문 섹션(.prose h2 / 본문)과 같게 — 요약도 문서의 한 절이다 */
+.doc-brief h4 {
+  margin: 0 0 8px;
+  color: var(--text);
+  font-size: 18px;
+  font-weight: 650;
+  line-height: 1.35;
+}
+
+.doc-brief p {
+  margin: 0;
+  color: var(--text-body);
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.doc-brief p.wait {
+  color: var(--text-faint);
+}
+
+/* 개체 요약 — 본문 위 핵심 관계 카드. 관계명 왼쪽, 링크 오른쪽의 한 줄들.
+   카드 남발 금지(design.md)라 테두리 하나 + 배경 명도 차이로만 가른다. */
+.entity-summary {
+  margin: 0 0 24px;
+  padding: 10px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  background: var(--panel);
+  display: grid;
+  gap: 6px;
+}
+
+.entity-summary .row {
+  display: grid;
+  grid-template-columns: 132px 1fr;
+  gap: 10px;
+  align-items: baseline;
+  font-size: 13px;
+}
+
+.entity-summary .k {
+  color: var(--text-dim);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.entity-summary .k i {
+  margin-left: 3px;
+  color: var(--text-faint);
+  font-style: normal;
+}
+
+.entity-summary .v {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+}
+
+.entity-summary a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.entity-summary a:hover {
+  text-decoration: underline;
+}
+
+.entity-summary em {
+  color: var(--text-faint);
+  font-size: 12px;
+  font-style: normal;
+}
+
+@media (max-width: 720px) {
+  .entity-summary .row {
+    grid-template-columns: 1fr;
+    gap: 2px;
+  }
+}
+
+/* WBS 격자 — 왼쪽 작업 정보 + 오른쪽 날짜 막대가 한 표.
+   행 하나가 곧 작업 하나라 표와 간트를 오가며 읽지 않아도 된다.
+   가로가 길어지므로 스크롤은 이 상자 안에서만 나고, 왼쪽 정보 열은 붙여 둔다. */
+.wbs-grid {
+  margin: 0 0 16px;
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  background: var(--panel);
+}
+
+.wbs-grid table {
+  display: table;
+  width: auto;
+  margin: 0;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 12.5px;
+}
+
+.wbs-grid th,
+.wbs-grid td {
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--line);
+  border-right: 1px solid var(--line);
+  text-align: left;
+  white-space: nowrap;
+}
+
+/* 세로 sticky는 두지 않는다 — 이 상자는 가로만 스크롤하므로 top:0이면
+   문서 스크롤에 헤더가 따라붙어 떠 보인다. */
+.wbs-grid thead th {
+  background: var(--panel);
+  color: var(--text-dim);
+  font-weight: 600;
+}
+
+/* 왼쪽 정보 블록은 가로 스크롤에도 남는다 */
+.wbs-grid .c-code,
+.wbs-grid .c-title {
+  position: sticky;
+  z-index: 1;
+  background: var(--panel);
+}
+
+.wbs-grid .c-code {
+  left: 0;
+  width: 52px;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.wbs-grid .c-title {
+  left: 52px;
+  min-width: 240px;
+  max-width: 420px;
+  white-space: normal;
+  border-right: 1px solid var(--line-strong);
+}
+
+.wbs-grid thead .c-code,
+.wbs-grid thead .c-title {
+  z-index: 2;
+}
+
+.wbs-grid .c-owner {
+  color: var(--text-body);
+}
+
+.wbs-grid .c-date {
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.wbs-grid .c-num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 맨 위 단(달)은 배경 명도로 한 겹 더 눌러 3단 헤더의 위계를 만든다 */
+.wbs-grid .c-month {
+  text-align: center;
+  border-right: 1px solid var(--line-strong);
+  background: var(--hover);
+  color: var(--text);
+  font-size: 11.5px;
+}
+
+.wbs-grid .c-week {
+  text-align: center;
+  border-right: 1px solid var(--line-strong);
+  font-size: 11.5px;
+  white-space: nowrap;
+}
+
+/* 날짜 칸은 좁게 — 요일 위, 일자 아래 */
+.wbs-grid .c-day {
+  width: 26px;
+  padding: 4px 0;
+  text-align: center;
+  font-size: 10.5px;
+  line-height: 1.25;
+}
+
+.wbs-grid .c-day b {
+  display: block;
+  font-weight: 600;
+}
+
+.wbs-grid .c-day i {
+  display: block;
+  color: var(--text-faint);
+  font-style: normal;
+  font-variant-numeric: tabular-nums;
+}
+
+.wbs-grid .c-cell {
+  padding: 0;
+  width: 26px;
+  min-width: 26px;
+}
+
+/* 막대 — 셀 배경이 아니라 안쪽 블록이라 시작·끝을 둥글릴 수 있다 */
+.wbs-grid .c-cell.on::after {
+  content: '';
+  display: block;
+  height: 15px;
+  margin: 5px 0;
+  background: var(--k);
+}
+
+.wbs-grid .c-cell.on.s::after {
+  margin-left: 3px;
+  border-radius: 3px 0 0 3px;
+}
+
+.wbs-grid .c-cell.on.e::after {
+  margin-right: 3px;
+  border-radius: 0 3px 3px 0;
+}
+
+/* 대분류 행 — 배경 명도만 올린다(테두리·색 추가 금지) */
+.wbs-grid tr.grp td {
+  background: var(--hover);
+  color: var(--text);
+  font-weight: 600;
+}
+
+.wbs-grid tr.grp .c-code {
+  background: var(--hover);
+}
+
+.wbs-grid tbody tr:not(.grp):hover td {
+  background: var(--hover);
+}
+
+.wbs-grid tbody tr:not(.grp):hover .c-code,
+.wbs-grid tbody tr:not(.grp):hover .c-title {
+  background: var(--hover);
+}
+
+/* 대분류 번호별 막대 색 — 개체 그래프와 같은 6묶음 저채도 팔레트 */
+.wbs-grid tr.g1 { --k: #7c9cc4; }
+.wbs-grid tr.g2 { --k: #5fb8a4; }
+.wbs-grid tr.g3 { --k: #c4a47c; }
+.wbs-grid tr.g4 { --k: #a79bc8; }
+.wbs-grid tr.g5 { --k: #8fb87c; }
+.wbs-grid tr.g6 { --k: #c48ca4; }
+
+.wbs-grid tr.grp .c-title {
+  border-left: 2px solid var(--k);
+}
+
+/* 진행률 — 값 구간만 색으로 가른다 */
+.wbs-grid .pct {
+  display: inline-block;
+  min-width: 40px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--hover);
+  color: var(--text-dim);
+  font-size: 11px;
+  font-weight: 600;
+  text-align: center;
+}
+
+.wbs-grid .pct.done {
+  background: rgba(45, 212, 191, 0.14);
+  color: var(--accent);
+}
+
+.wbs-grid .pct.high {
+  background: rgba(143, 184, 124, 0.14);
+  color: #a8cf94;
+}
+
+.wbs-grid .pct.low {
+  background: rgba(251, 191, 36, 0.13);
+  color: var(--warn);
+}
+
+/* PlantUML 다이어그램 — SVG가 검정 글자·투명 배경이라 다크 테마에서 안 보인다.
+   밝은 판을 깔아 준다. */
+.prose img.plantuml {
+  display: block;
+  max-width: 100%;
+  margin: 0 0 16px;
+  padding: 12px;
+  border-radius: var(--r);
+  background: #fff;
+}
+
 .prose blockquote {
   margin: 0 0 16px;
   padding: 2px 0 2px 14px;
@@ -863,8 +1271,12 @@ kbd {
 }
 
 /* 표 — border 최소화, header 배경만 약간, 행 hover */
+/* 표는 내용 폭으로 잡고 모자라면 가로 스크롤한다.
+   width:100%로 두면 열이 많은 표(일자별 업무 7열)에서 짧은 열이 눌려
+   '요일'이 '요/일'로, '김윤서'가 '김윤/서'로 꺾인다(실측). */
 .prose table {
-  width: 100%;
+  width: max-content;
+  min-width: 100%;
   margin: 0 0 16px;
   border-collapse: collapse;
   font-size: 13px;
@@ -877,6 +1289,12 @@ kbd {
   padding: 7px 12px;
   border-bottom: 1px solid var(--line);
   text-align: left;
+  /* 긴 문장 열만 접히게 한다 — 짧은 열은 max-width에 안 걸려 제 폭을 갖는다 */
+  max-width: 52ch;
+}
+
+.prose th {
+  white-space: nowrap;
 }
 
 .prose th {
@@ -1063,7 +1481,6 @@ button.quiet.on {
   background: var(--sel);
   color: var(--accent);
 }
-
 /* 아이콘 전용 30×30 */
 button.icon {
   width: 30px;
@@ -1357,11 +1774,43 @@ table.status .num {
   border-top: 1px solid var(--line);
 }
 
-.backlinks h4 {
-  margin: 0 0 8px;
+/* 접이식. 삼각형은 CSS로 그린다 — 본문 details와 같은 방식(design.md) */
+.backlinks > summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  cursor: pointer;
+  list-style: none;
   font-size: 13px;
   font-weight: 600;
   color: var(--text-dim);
+}
+
+.backlinks > summary::-webkit-details-marker {
+  display: none;
+}
+
+.backlinks > summary::before {
+  content: '';
+  width: 0;
+  height: 0;
+  border-left: 5px solid var(--text-faint);
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+  transition: transform 140ms;
+}
+
+.backlinks[open] > summary::before {
+  transform: rotate(90deg);
+}
+
+.backlinks > summary:hover {
+  color: var(--text);
+}
+
+.backlinks > *:not(summary) {
+  margin-top: 8px;
 }
 
 .backlinks ul {
@@ -2004,6 +2453,30 @@ a.card:hover {
   height: calc(100vh - var(--tabbar-h, 44px) - 156px);
   min-height: 480px;
   min-width: 0;
+}
+
+/* 개체 문서 기본 뷰 — 문서(.doc)와 나란히 서는 오른쪽 반. 여기서는 부모가 제대로 된
+   flex 컨테이너라 위의 100vh 계산 없이 flex로 높이를 채운다. */
+.graph-split {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  border-left: 1px solid var(--line);
+  background: var(--main-bg);
+}
+
+.graph-split .entity-graph {
+  flex: 1;
+  height: auto;
+  min-height: 0;
+}
+
+/* 반폭에서는 캔버스+인스펙터가 안 들어간다 — 인스펙터를 접는다.
+   상세는 전체 모드나 노드 클릭 미리보기로 본다. */
+@media (max-width: 1700px) {
+  .graph-split .graph-inspector {
+    display: none;
+  }
 }
 
 .entity-graph .canvas {

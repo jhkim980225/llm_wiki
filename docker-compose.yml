@@ -8,5 +8,9 @@ services:
       POSTGRES_DB: wiki
     ports: ["15432:5432"]
     volumes: ["pgdata:/var/lib/postgresql/data"]
+  plantuml:
+    # 본문 ```plantuml 펜스 렌더용. 앱은 /api/plantuml 프록시로 여기 붙는다.
+    image: plantuml/plantuml-server:jetty
+    ports: ["18080:8080"]
 volumes:
   pgdata:
