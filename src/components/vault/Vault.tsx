@@ -4,6 +4,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import {
   CalendarDays,
   ChevronsRight,
+  CircleHelp,
   Home,
   Menu,
   MessageSquare,
@@ -117,6 +118,12 @@ export function Vault({ children }: { children: ReactNode }) {
         <span className="grow" />
 
         <div className="rail-sep" role="separator" />
+        <SidebarItem
+          icon={<CircleHelp size={IC} aria-hidden />}
+          label="도움말"
+          href="/guide"
+          on={pathname === '/guide'}
+        />
         <SidebarItem
           icon={<SettingsIcon size={IC} aria-hidden />}
           label="설정"

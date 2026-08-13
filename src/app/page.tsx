@@ -1,5 +1,6 @@
 'use client'
 import {
+  CircleHelp,
   FileText,
   Settings as SettingsIcon,
   Sparkles,
@@ -55,6 +56,12 @@ export default function Home() {
               title="휴지통"
               desc="삭제한 문서와 폴더가 7일간 보관됩니다. 복원하거나 즉시 비울 수 있습니다."
               href="/trash"
+            />
+            <EmptyStateAction
+              icon={<CircleHelp size={16} aria-hidden />}
+              title="가이드"
+              desc="전체 사용자 매뉴얼을 사이트 안에서 봅니다. 화면별 사용법과 단축키가 캡처와 함께 정리되어 있습니다."
+              href="/guide"
             />
             <EmptyStateAction
               icon={<SettingsIcon size={16} aria-hidden />}
