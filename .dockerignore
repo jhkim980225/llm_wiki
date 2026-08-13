@@ -5,3 +5,5 @@ node_modules
 .env.test
 docs
 *.md
+# /guide가 빌드 시점에 읽는다 (src/app/guide/page.tsx)
+!docs/manual/사용자-매뉴얼.md
