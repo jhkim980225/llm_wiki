@@ -16,7 +16,8 @@
 | `docs/소스-rag-api.md` | 소스 RAG API 3개 실측 — 응답 형태·type 값·개체 필터·소요시간. `scripts/probe-rag-api.mjs`로 재현 |
 | `docs/superpowers/specs/2026-08-04-wiki-v2-design.md` | v2 설계 결정 기록 |
 | `docs/서버정보.md` | **배포·SSH 전 필독** — 클러스터 접속 계정·비밀번호(FEDA_PW), 스토리지클래스. git 미포함 |
-| `docs/manual/사용자-매뉴얼.md` | 최종 사용자 매뉴얼 (화면 캡처 포함, PDF 동봉). 화면 바뀌면 캡처·PDF 재생성 |
+| `docs/manual/사용자-매뉴얼.md` | 최종 사용자 매뉴얼 (화면 캡처 포함, PDF 동봉). 사이트 `/guide`가 이 파일을 빌드 시점에 그대로 렌더 — 화면 바뀌면 캡처·PDF 재생성 + `public/manual/img/` 복사본 갱신 |
+| `docs/점검.md` | **시스템 점검 보고서 (2026-08-10, 0.67.0 기준)** — 구조·기능·보안·UX·운영 실측 진단과 P0~P3 개선 계획. 보안 P0 3건이 미조치 상태 |
 
 ## 스택 · 명령
 
