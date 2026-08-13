@@ -108,6 +108,49 @@ data:
   # FLOW 스케줄 tick 보호 토큰 — 아래 CronJob이 같은 값을 헤더로 보낸다.
   # 사내망 전용 데모라 configmap에 둔다. 외부 노출 강화 시 Secret으로 승격.
   FLOW_TICK_TOKEN: flow-tick-sj-2026-8f3a
+  # 본문 ```plantuml 펜스 렌더 서버 (아래 plantuml Deployment)
+  PLANTUML_URL: http://plantuml:8080
+  # 세션 쿠키에 Secure를 붙인다. TLS 인그레스(cloud.fedaground.com)로만 접속하는 전제다 —
+  # 평문 http로 들어오면 브라우저가 쿠키를 버려 로그인이 무한 루프가 된다(cookies.ts 주석 참조).
+  # 그래서 평문 인그레스(wiki-graph-ingress-ip)를 함께 제거했다. NodePort 31900도 로그인은 안 된다.
+  COOKIE_SECURE: "1"
+---
+# ── PlantUML 렌더 서버 ────────────────────────────────────────────────
+# 본문 ```plantuml 펜스를 SVG로 그린다. 공개 이미지라 노드가 직접 pull한다
+# (앱 이미지처럼 ctr 반입 불필요). 상태 없음 — 볼륨 없음.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: plantuml
+  namespace: jh-wiki-graph
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: plantuml }
+  template:
+    metadata:
+      labels: { app: plantuml }
+    spec:
+      containers:
+        - name: plantuml
+          image: plantuml/plantuml-server:jetty
+          ports: [{ containerPort: 8080 }]
+          readinessProbe:
+            httpGet: { path: /, port: 8080 }
+            initialDelaySeconds: 15
+            periodSeconds: 15
+          resources:
+            requests: { cpu: 100m, memory: 256Mi }
+            limits: { cpu: "1", memory: 1Gi }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: plantuml
+  namespace: jh-wiki-graph
+spec:
+  selector: { app: plantuml }
+  ports: [{ port: 8080, targetPort: 8080 }]
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -130,18 +173,24 @@ spec:
         - name: migrate
           # 앱 이미지의 node_modules는 Next standalone이 추려낸 것이라 Prisma CLI의
           # 전이 의존성이 없다. 마이그레이션은 CLI를 갖춘 전용 이미지로 돌린다.
-          image: wiki-graph-migrate:0.11.0
+          image: wiki-graph-migrate:0.61.0
           imagePullPolicy: Never
           envFrom:
             - configMapRef: { name: wiki-graph-env }
       containers:
         - name: app
-          image: wiki-graph:0.54.2
+          image: wiki-graph:0.67.0
           imagePullPolicy: Never
           envFrom:
             - configMapRef: { name: wiki-graph-env }
             # LLM API 키. optional — 없으면 뜨긴 뜨되 채팅만 안 된다 (vLLM 복귀 시에도 안전)
             - secretRef: { name: wiki-graph-llm, optional: true }
+            # 세션 서명키. 없으면 session.ts의 하드코딩 기본값으로 서명해 토큰 위조가 가능해진다.
+            # git에 남기지 않으려고 클러스터에서 직접 만든다:
+            #   kubectl -n jh-wiki-graph create secret generic wiki-graph-auth \
+            #     --from-literal=AUTH_SECRET="$(openssl rand -base64 48)"
+            # 값을 바꾸면 기존 세션이 전부 무효가 된다(전원 재로그인).
+            - secretRef: { name: wiki-graph-auth }
           env:
             # ejkim 전량 적재(13.8만 개체·141만 트리플)가 기본 힙(~1GB)을 넘어 OOM —
             # 실측 2026-08-07 exit 139. 컨테이너 한도(4Gi) 안에서 힙을 넉넉히 준다.
@@ -234,32 +283,10 @@ spec:
     - hosts: [cloud.fedaground.com]
       secretName: wiki-graph-cloud-tls
 ---
-# DNS 콘솔 없이 쓰는 IP 기반 외부 주소 — nip.io 공용 와일드카드 DNS가
-# wiki.1.201.66.21.nip.io 를 공인 IP로 풀어 준다. 인증서 없이 http만 (ssl-redirect 끔).
-# wiki.fedaground.com DNS가 생기면 이 인그레스는 지워도 된다.
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  name: wiki-graph-ingress-ip
-  namespace: jh-wiki-graph
-  annotations:
-    nginx.ingress.kubernetes.io/ssl-redirect: "false"
-    nginx.ingress.kubernetes.io/proxy-body-size: 20m
-    nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
-    nginx.ingress.kubernetes.io/proxy-send-timeout: "600"
-    nginx.ingress.kubernetes.io/proxy-buffering: "off"
-spec:
-  ingressClassName: nginx
-  rules:
-    - host: wiki.1.201.66.21.nip.io
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: wiki-graph
-                port: { number: 3000 }
+# 평문 HTTP 인그레스(wiki.1.201.66.21.nip.io)는 2026-08-10 점검에서 제거했다.
+# TLS 없이 공인망에 열려 있어 세션 쿠키가 평문으로 오갔다(docs/점검.md H-1).
+# 접속은 위 두 TLS 인그레스로만 한다. 되살릴 일이 생기면 COOKIE_SECURE=1과 양립하지
+# 않는다는 점을 먼저 확인할 것 — Secure 쿠키는 http로 오가지 않아 로그인이 안 된다.
 ---
 # FLOW 스케줄 심장박동 — 10분마다 due 작업을 실행한다. 앱 재시작과 무관.
 apiVersion: batch/v1
