@@ -5,6 +5,7 @@ import {
   CalendarDays,
   ChevronsRight,
   CircleHelp,
+  FlaskConical,
   Home,
   Menu,
   MessageSquare,
@@ -113,6 +114,8 @@ export function Vault({ children }: { children: ReactNode }) {
         {/* WBS 일정은 고정 메뉴에서 뺐다 — 템플릿 폴더의 양식 문서 + FLOW로 다룬다 (/wbs URL은 유지) */}
         <SidebarItem icon={<Workflow size={IC} aria-hidden />} label="FLOW" href="/flow" on={pathname === '/flow'} />
         <SidebarItem icon={<CalendarDays size={IC} aria-hidden />} label="캘린더" href="/calendar" on={pathname === '/calendar'} />
+        {/* LightRAG PoC 실험 탭 — 구경 끝나면 페이지와 함께 뗀다 (specs/2026-08-19) */}
+        <SidebarItem icon={<FlaskConical size={IC} aria-hidden />} label="LightRAG" href="/lightrag" on={pathname === '/lightrag'} />
         <SidebarItem icon={<Trash2 size={IC} aria-hidden />} label="휴지통" href="/trash" on={pathname === '/trash'} />
 
         <span className="grow" />

@@ -110,6 +110,9 @@ data:
   FLOW_TICK_TOKEN: flow-tick-sj-2026-8f3a
   # 본문 ```plantuml 펜스 렌더 서버 (아래 plantuml Deployment)
   PLANTUML_URL: http://plantuml:8080
+  # LightRAG PoC (아래 lightrag Deployment) — /lightrag 테스트 화면의 프록시 대상
+  LIGHTRAG_URL: http://lightrag:9621
+  LIGHTRAG_API_KEY: lightrag-poc-sj-2026
   # 세션 쿠키에 Secure를 붙인다. TLS 인그레스(cloud.fedaground.com)로만 접속하는 전제다 —
   # 평문 http로 들어오면 브라우저가 쿠키를 버려 로그인이 무한 루프가 된다(cookies.ts 주석 참조).
   # 그래서 평문 인그레스(wiki-graph-ingress-ip)를 함께 제거했다. NodePort 31900도 로그인은 안 된다.
@@ -152,6 +155,70 @@ spec:
   selector: { app: plantuml }
   ports: [{ port: 8080, targetPort: 8080 }]
 ---
+# ── LightRAG PoC ──────────────────────────────────────────────────────
+# 그래프 추출형 RAG 구경용 (specs/2026-08-19-lightrag-poc-design.md).
+# LLM은 LUNA(gpt-5.6-luna, wiki-graph-llm Secret 재사용), 임베딩은 사내 Ollama.
+# 사용량 상한: 시드 2건·6천자 절단(scripts/lightrag-seed.py) + MAX_ASYNC_LLM=2.
+# 저장은 emptyDir — 재시작 시 재색인이 PVC보다 싸다(2건). 제거 = 이 블록 삭제.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: lightrag
+  namespace: jh-wiki-graph
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: lightrag }
+  template:
+    metadata:
+      labels: { app: lightrag }
+    spec:
+      containers:
+        - name: lightrag
+          image: ghcr.io/hkuds/lightrag:latest
+          ports: [{ containerPort: 9621 }]
+          env:
+            - { name: LLM_BINDING, value: openai }
+            - { name: LLM_BINDING_HOST, value: "https://api.openai.com/v1" }
+            - { name: LLM_MODEL, value: gpt-5.6-luna }
+            - name: LLM_BINDING_API_KEY
+              valueFrom:
+                secretKeyRef: { name: wiki-graph-llm, key: LLM_API_KEY }
+            - { name: EMBEDDING_BINDING, value: ollama }
+            - { name: EMBEDDING_BINDING_HOST, value: "http://192.168.0.152:11434" }
+            - { name: EMBEDDING_MODEL, value: embeddinggemma }
+            - { name: EMBEDDING_DIM, value: "768" }
+            - { name: MAX_ASYNC_LLM, value: "2" }
+            - { name: MAX_PARALLEL_INSERT, value: "1" }
+            # 사내망 NodePort 노출이라 키만 건다. X-API-Key 헤더.
+            - { name: LIGHTRAG_API_KEY, value: lightrag-poc-sj-2026 }
+            - { name: WORKING_DIR, value: /data }
+          volumeMounts:
+            - { name: data, mountPath: /data }
+          readinessProbe:
+            tcpSocket: { port: 9621 }
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          resources:
+            requests: { cpu: 100m, memory: 512Mi }
+            limits: { cpu: "1", memory: 2Gi }
+      volumes:
+        - name: data
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: lightrag
+  namespace: jh-wiki-graph
+spec:
+  type: NodePort
+  selector: { app: lightrag }
+  ports:
+    - port: 9621
+      targetPort: 9621
+      nodePort: 31930
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -179,7 +246,7 @@ spec:
             - configMapRef: { name: wiki-graph-env }
       containers:
         - name: app
-          image: wiki-graph:0.68.0
+          image: wiki-graph:0.69.0
           imagePullPolicy: Never
           envFrom:
             - configMapRef: { name: wiki-graph-env }
