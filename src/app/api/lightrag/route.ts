@@ -10,7 +10,12 @@ export const maxDuration = 300
 const MODES = new Set(['local', 'global', 'hybrid', 'naive', 'mix'])
 
 export async function POST(req: Request) {
-  if (!(await requireSession())) return Response.json({ error: '로그인이 필요합니다' }, { status: 401 })
+  const authed = await requireSession()
+  if (!authed) return Response.json({ error: '로그인이 필요합니다' }, { status: 401 })
+  // 실험 탭과 동일하게 bench 계정 전용 — LUNA 비용이 나가는 경로라 좁혀 둔다
+  if (authed.user.loginId !== 'bench') {
+    return Response.json({ error: 'bench 계정 전용 실험 기능입니다' }, { status: 403 })
+  }
 
   const base = process.env.LIGHTRAG_URL
   if (!base) return Response.json({ error: 'LIGHTRAG_URL 미설정' }, { status: 503 })

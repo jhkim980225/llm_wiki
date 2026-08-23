@@ -156,7 +156,7 @@ spec:
   ports: [{ port: 8080, targetPort: 8080 }]
 ---
 # ── LightRAG PoC ──────────────────────────────────────────────────────
-# 그래프 추출형 RAG 구경용 (specs/2026-08-19-lightrag-poc-design.md).
+# 그래프 추출형 RAG 구경용 (docs/light-rag/).
 # LLM은 LUNA(gpt-5.6-luna, wiki-graph-llm Secret 재사용), 임베딩은 사내 Ollama.
 # 사용량 상한: 시드 2건·6천자 절단(scripts/lightrag-seed.py) + MAX_ASYNC_LLM=2.
 # 저장은 emptyDir — 재시작 시 재색인이 PVC보다 싸다(2건). 제거 = 이 블록 삭제.
@@ -246,7 +246,7 @@ spec:
             - configMapRef: { name: wiki-graph-env }
       containers:
         - name: app
-          image: wiki-graph:0.69.0
+          image: wiki-graph:0.71.0
           imagePullPolicy: Never
           envFrom:
             - configMapRef: { name: wiki-graph-env }

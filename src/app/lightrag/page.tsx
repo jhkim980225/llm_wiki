@@ -13,7 +13,7 @@ const MODES = [
 
 /**
  * LightRAG PoC 테스트 화면 — 클러스터의 LightRAG 서버에 질문을 던져
- * 기존 /ask·채팅과 답변을 눈으로 비교한다. 실험용 탭 (specs/2026-08-19).
+ * 기존 /ask·채팅과 답변을 눈으로 비교한다. 실험용 탭 (docs/light-rag/).
  * 색인은 화면에 없다 — scripts/lightrag-seed.py가 담당.
  */
 export default function LightragPage() {

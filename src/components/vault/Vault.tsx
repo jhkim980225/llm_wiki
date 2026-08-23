@@ -40,6 +40,8 @@ export function Vault({ children }: { children: ReactNode }) {
 
   const [collapsed, setCollapsed] = useState(false)
   const [settings, setSettings] = useState(false)
+  // LightRAG 실험 탭은 bench 계정에만 보인다 (docs/light-rag/). API 쪽도 같은 제한.
+  const [loginId, setLoginId] = useState('')
 
   // 접힘 상태는 localStorage에 기억한다. SSR과의 hydration 불일치를 피해 effect에서 읽는다.
   // 모바일(≤1023px)에선 트리가 콘텐츠 위 오버레이라 기본 접힘으로 둔다 — 안 그러면
@@ -54,6 +56,13 @@ export function Vault({ children }: { children: ReactNode }) {
       return !c
     })
   }
+
+  useEffect(() => {
+    fetch('/api/auth/me')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => d?.user?.loginId && setLoginId(d.user.loginId))
+      .catch(() => {})
+  }, [])
 
   // 홈 가이드 등 셸 밖 컴포넌트가 설정 모달을 열 수 있게 이벤트를 받는다
   useEffect(() => {
@@ -114,8 +123,10 @@ export function Vault({ children }: { children: ReactNode }) {
         {/* WBS 일정은 고정 메뉴에서 뺐다 — 템플릿 폴더의 양식 문서 + FLOW로 다룬다 (/wbs URL은 유지) */}
         <SidebarItem icon={<Workflow size={IC} aria-hidden />} label="FLOW" href="/flow" on={pathname === '/flow'} />
         <SidebarItem icon={<CalendarDays size={IC} aria-hidden />} label="캘린더" href="/calendar" on={pathname === '/calendar'} />
-        {/* LightRAG PoC 실험 탭 — 구경 끝나면 페이지와 함께 뗀다 (specs/2026-08-19) */}
-        <SidebarItem icon={<FlaskConical size={IC} aria-hidden />} label="LightRAG" href="/lightrag" on={pathname === '/lightrag'} />
+        {/* LightRAG PoC 실험 탭 — bench 계정 전용. 구경 끝나면 페이지와 함께 뗀다 (docs/light-rag/) */}
+        {loginId === 'bench' && (
+          <SidebarItem icon={<FlaskConical size={IC} aria-hidden />} label="LightRAG" href="/lightrag" on={pathname === '/lightrag'} />
+        )}
         <SidebarItem icon={<Trash2 size={IC} aria-hidden />} label="휴지통" href="/trash" on={pathname === '/trash'} />
 
         <span className="grow" />
