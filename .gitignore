@@ -14,3 +14,10 @@ tsconfig.tsbuildinfo
 
 # 로컬 dev 서버 로그
 dev.log
+
+# 사내 원본 메일·문서 (LightRAG 색인 소스). 실제 업무 내용이라 커밋 금지
+datafile/
+docs/light-rag/wiki/data/
+
+# .env 백업본 (API 키 포함)
+.env.*-backup
