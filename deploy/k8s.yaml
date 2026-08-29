@@ -188,6 +188,10 @@ spec:
             - { name: EMBEDDING_BINDING_HOST, value: "http://192.168.0.152:11434" }
             - { name: EMBEDDING_MODEL, value: embeddinggemma }
             - { name: EMBEDDING_DIM, value: "768" }
+            # 2026-08-29: 미설정 시 기본값(English)이라 한국어 원문에서도 개체가
+            # 영어로 뽑혔다(Seongjin 등). 재배포 = emptyDir이라 기존 색인 소실 —
+            # 재배포 후 전량 재색인 필요.
+            - { name: SUMMARY_LANGUAGE, value: Korean }
             - { name: MAX_ASYNC_LLM, value: "2" }
             - { name: MAX_PARALLEL_INSERT, value: "1" }
             # 사내망 NodePort 노출이라 키만 건다. X-API-Key 헤더.
