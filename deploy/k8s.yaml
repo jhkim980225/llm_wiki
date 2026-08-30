@@ -159,7 +159,20 @@ spec:
 # 그래프 추출형 RAG 구경용 (docs/light-rag/).
 # LLM은 LUNA(gpt-5.6-luna, wiki-graph-llm Secret 재사용), 임베딩은 사내 Ollama.
 # 사용량 상한: 시드 2건·6천자 절단(scripts/lightrag-seed.py) + MAX_ASYNC_LLM=2.
-# 저장은 emptyDir — 재시작 시 재색인이 PVC보다 싸다(2건). 제거 = 이 블록 삭제.
+# 저장은 PVC(cephfs-sc) — 2026-08-31 emptyDir에서 전환. 색인 121건 시절 재시작마다
+# 전량 재색인(수시간+LUNA 비용)이 더 비싸졌다. 전환 시점에 1회 재색인함.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: lightrag-data
+  namespace: jh-wiki-graph
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: cephfs-sc
+  resources:
+    requests:
+      storage: 10Gi
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -189,8 +202,7 @@ spec:
             - { name: EMBEDDING_MODEL, value: embeddinggemma }
             - { name: EMBEDDING_DIM, value: "768" }
             # 2026-08-29: 미설정 시 기본값(English)이라 한국어 원문에서도 개체가
-            # 영어로 뽑혔다(Seongjin 등). 재배포 = emptyDir이라 기존 색인 소실 —
-            # 재배포 후 전량 재색인 필요.
+            # 영어로 뽑혔다(Seongjin 등). 당시 emptyDir이라 전량 재색인으로 반영.
             - { name: SUMMARY_LANGUAGE, value: Korean }
             - { name: MAX_ASYNC_LLM, value: "2" }
             - { name: MAX_PARALLEL_INSERT, value: "1" }
@@ -208,7 +220,8 @@ spec:
             limits: { cpu: "1", memory: 2Gi }
       volumes:
         - name: data
-          emptyDir: {}
+          persistentVolumeClaim:
+            claimName: lightrag-data
 ---
 apiVersion: v1
 kind: Service
