@@ -22,6 +22,7 @@ type Status = {
 }
 type Doc = { id: string; status: string; length: number | null; updatedAt: string | null; error: string | null }
 type Ref = { id: string; doc: string }
+type ChatMsg = { role: 'user' | 'ai'; text: string; refs?: Ref[]; tookMs?: number }
 
 const STATUS_ORDER: Record<string, number> = { failed: 0, processing: 1, pending: 2, processed: 3 }
 
@@ -44,6 +45,10 @@ export default function LightragPage() {
   const [tookMs, setTookMs] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+
+  const [chat, setChat] = useState<ChatMsg[]>([])
+  const [chatInput, setChatInput] = useState('')
+  const [chatBusy, setChatBusy] = useState(false)
 
   const [status, setStatus] = useState<Status | null>(null)
   const [docs, setDocs] = useState<Doc[] | null>(null)
@@ -100,6 +105,33 @@ export default function LightragPage() {
       setError('요청 실패 — 네트워크를 확인하세요')
     } finally {
       setBusy(false)
+    }
+  }
+
+  // 일반 사용자용 대화 — 모드 선택 없이 hybrid 고정, 질문마다 독립 질의(이력 미전달)
+  const sendChat = async () => {
+    const q = chatInput.trim()
+    if (!q || chatBusy) return
+    setChatInput('')
+    setChat((c) => [...c, { role: 'user', text: q }])
+    setChatBusy(true)
+    try {
+      const res = await fetch('/api/lightrag', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: q, mode: 'hybrid' }),
+      })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) setChat((c) => [...c, { role: 'ai', text: `오류: ${body.error ?? `HTTP ${res.status}`}` }])
+      else
+        setChat((c) => [
+          ...c,
+          { role: 'ai', text: body.response || '(빈 응답)', refs: body.references ?? [], tookMs: body.durationMs },
+        ])
+    } catch {
+      setChat((c) => [...c, { role: 'ai', text: '오류: 요청 실패 — 네트워크를 확인하세요' }])
+    } finally {
+      setChatBusy(false)
     }
   }
 
@@ -199,6 +231,62 @@ export default function LightragPage() {
               )}
             </div>
           )}
+
+          {/* 일반 사용자용 대화 — 설정 없이 물어보는 창 */}
+          <h2 style={{ fontSize: 18, fontWeight: 650, marginTop: 40 }}>대화</h2>
+          <p className="meta">모드 설정 없이 바로 물어보는 창입니다 (hybrid 고정). 질문은 각각 독립적으로 처리됩니다.</p>
+          {chat.length > 0 && (
+            <div
+              style={{
+                maxHeight: 480,
+                overflowY: 'auto',
+                border: '1px solid var(--line)',
+                borderRadius: 8,
+                padding: '18px 16px',
+                display: 'grid',
+                gap: 18,
+                marginBottom: 10,
+              }}
+            >
+              {chat.map((m, i) =>
+                m.role === 'user' ? (
+                  <div key={i} className="msg-user">{m.text}</div>
+                ) : (
+                  <div key={i} className="msg-ai">
+                    <span className="ai-icon">
+                      <FlaskConical size={15} aria-hidden />
+                    </span>
+                    <div className="body">
+                      <Markdown content={m.text} />
+                      {(m.refs?.length ?? 0) > 0 && (
+                        <p className="meta" style={{ marginTop: 8 }}>
+                          참조: {m.refs!.map((r) => r.doc).join(' · ')}
+                        </p>
+                      )}
+                      {m.tookMs != null && <p className="meta">{(m.tookMs / 1000).toFixed(1)}초</p>}
+                    </div>
+                  </div>
+                ),
+              )}
+              {chatBusy && <p className="meta">답변을 만드는 중 — 수십 초 걸릴 수 있습니다…</p>}
+            </div>
+          )}
+          <div style={{ display: 'flex', gap: 8 }}>
+            <input
+              value={chatInput}
+              onChange={(e) => setChatInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') sendChat()
+              }}
+              placeholder="질문을 입력하세요 — Enter 전송"
+              aria-label="대화 질문"
+              style={{ flex: 1 }}
+              disabled={chatBusy}
+            />
+            <button className="primary" onClick={sendChat} disabled={chatBusy || !chatInput.trim()}>
+              <Play size={13} aria-hidden /> 전송
+            </button>
+          </div>
 
           {/* 색인 문서 */}
           <h2 style={{ fontSize: 18, fontWeight: 650, marginTop: 40 }}>
