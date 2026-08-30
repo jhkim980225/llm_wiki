@@ -9,16 +9,78 @@ export const maxDuration = 300
 
 const MODES = new Set(['local', 'global', 'hybrid', 'naive', 'mix'])
 
-export async function POST(req: Request) {
+async function guard() {
   const authed = await requireSession()
   if (!authed) return Response.json({ error: '로그인이 필요합니다' }, { status: 401 })
   // 실험 탭과 동일하게 bench 계정 전용 — LUNA 비용이 나가는 경로라 좁혀 둔다
   if (authed.user.loginId !== 'bench') {
     return Response.json({ error: 'bench 계정 전용 실험 기능입니다' }, { status: 403 })
   }
-
   const base = process.env.LIGHTRAG_URL
   if (!base) return Response.json({ error: 'LIGHTRAG_URL 미설정' }, { status: 503 })
+  return base
+}
+
+function upstreamGet(base: string, path: string) {
+  return fetch(`${base}${path}`, {
+    headers: { 'X-API-Key': process.env.LIGHTRAG_API_KEY ?? '' },
+    signal: AbortSignal.timeout(15_000),
+  })
+    .then((r) => (r.ok ? r.json() : null))
+    .catch(() => null)
+}
+
+/**
+ * 확인용 조회 — 색인 상태·문서 목록·그래프 라벨. 화이트리스트 프록시라
+ * 임의 경로 전달은 없다. LLM을 타지 않아 비용 0.
+ */
+export async function GET(req: Request) {
+  const base = await guard()
+  if (base instanceof Response) return base
+
+  const view = new URL(req.url).searchParams.get('view')
+  if (view === 'status') {
+    const [health, counts, pipeline] = await Promise.all([
+      upstreamGet(base, '/health'),
+      upstreamGet(base, '/documents/status_counts'),
+      upstreamGet(base, '/documents/pipeline_status'),
+    ])
+    if (!health) return Response.json({ error: 'LightRAG 응답 없음' }, { status: 502 })
+    return Response.json({
+      status: health.status ?? null,
+      coreVersion: health.core_version ?? null,
+      llmModel: health.configuration?.llm_model ?? null,
+      summaryLanguage: health.configuration?.summary_language ?? null,
+      counts: counts?.status_counts ?? counts ?? {},
+      busy: pipeline?.busy ?? null,
+    })
+  }
+  if (view === 'documents') {
+    const body = await upstreamGet(base, '/documents')
+    if (!body) return Response.json({ error: 'LightRAG 응답 없음' }, { status: 502 })
+    const docs = Object.entries((body.statuses ?? {}) as Record<string, Record<string, unknown>[]>)
+      .flatMap(([status, list]) =>
+        (list ?? []).map((d) => ({
+          id: String(d.file_path ?? d.id ?? ''),
+          status,
+          length: typeof d.content_length === 'number' ? d.content_length : null,
+          updatedAt: typeof d.updated_at === 'string' ? d.updated_at : null,
+          error: typeof d.error_msg === 'string' ? d.error_msg : null,
+        })),
+      )
+    return Response.json({ documents: docs })
+  }
+  if (view === 'labels') {
+    const labels = await upstreamGet(base, '/graph/label/list')
+    if (!Array.isArray(labels)) return Response.json({ error: 'LightRAG 응답 없음' }, { status: 502 })
+    return Response.json({ labels })
+  }
+  return Response.json({ error: 'view는 status·documents·labels 중 하나' }, { status: 400 })
+}
+
+export async function POST(req: Request) {
+  const base = await guard()
+  if (base instanceof Response) return base
 
   const { query, mode } = await req.json().catch(() => ({}))
   if (typeof query !== 'string' || !query.trim() || query.length > 2000) {
@@ -43,5 +105,12 @@ export async function POST(req: Request) {
   if (!upstream.ok || !body) {
     return Response.json({ error: `LightRAG ${upstream.status}` }, { status: 502 })
   }
-  return Response.json({ response: body.response ?? '', durationMs: Date.now() - t0 })
+  // references: 답변 근거 문서 목록 [{reference_id, file_path}] — 정합성 확인에 쓴다
+  const references = Array.isArray(body.references)
+    ? body.references.map((r: { reference_id?: string; file_path?: string }) => ({
+        id: String(r.reference_id ?? ''),
+        doc: String(r.file_path ?? ''),
+      }))
+    : []
+  return Response.json({ response: body.response ?? '', references, durationMs: Date.now() - t0 })
 }
