@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { LogOut, X } from 'lucide-react'
 import { toast } from '@/lib/toast'
+import { logout } from './logout'
 
 type GraphSource = {
   id: string
@@ -39,17 +40,7 @@ export function Settings({ onClose }: { onClose: () => void }) {
             정보
           </button>
           <span className="grow" />
-          <button
-            className="icon"
-            aria-label="로그아웃"
-            title="로그아웃"
-            onClick={async () => {
-              await fetch('/api/auth/logout', { method: 'POST' }).catch(() => {})
-              toast('로그아웃했습니다.', 'success')
-              // 라우터 대신 전체 리로드 — 클라이언트 상태를 확실히 비운다
-              window.location.href = '/login'
-            }}
-          >
+          <button className="icon" aria-label="로그아웃" title="로그아웃" onClick={logout}>
             <LogOut size={15} />
           </button>
           <button className="icon" aria-label="닫기" title="닫기" onClick={onClose}>

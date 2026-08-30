@@ -7,6 +7,7 @@ import {
   CircleHelp,
   FlaskConical,
   Home,
+  LogOut,
   Menu,
   MessageSquare,
   Settings as SettingsIcon,
@@ -19,6 +20,7 @@ import {
 import { SidebarItem } from '@/components/ui'
 import { stripBasePath } from '@/lib/wiki/href'
 import { FileTree } from './FileTree'
+import { logout } from './logout'
 import { Settings } from './Settings'
 import { version } from '../../../package.json'
 
@@ -144,6 +146,7 @@ export function Vault({ children }: { children: ReactNode }) {
           on={settings}
           onClick={() => setSettings(true)}
         />
+        <SidebarItem icon={<LogOut size={IC} aria-hidden />} label="로그아웃" onClick={logout} />
         <span className="rail-version" title={`버전 v${version}`}>
           v{version}
         </span>
