@@ -172,8 +172,7 @@ spec:
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  # v2: 임베딩 768→1536 전환으로 새 볼륨 (2026-08-31). 구 lightrag-data는
-  # 수동 삭제 대상 — kubectl delete pvc lightrag-data -n jh-wiki-graph
+  # v2: 임베딩 768→1536 전환으로 새 볼륨 (2026-08-31). 구 lightrag-data는 삭제 완료.
   name: lightrag-data-v2
   namespace: jh-wiki-graph
 spec:
@@ -283,7 +282,7 @@ spec:
             - configMapRef: { name: wiki-graph-env }
       containers:
         - name: app
-          image: wiki-graph:0.74.0
+          image: wiki-graph:0.75.0
           imagePullPolicy: Never
           envFrom:
             - configMapRef: { name: wiki-graph-env }
