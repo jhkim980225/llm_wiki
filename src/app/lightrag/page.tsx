@@ -311,10 +311,15 @@ export default function LightragPage() {
               }}
               placeholder="질문을 입력하세요 — Enter 전송"
               aria-label="대화 질문"
-              style={{ flex: 1 }}
+              style={{ flex: 1, minWidth: 0 }}
               disabled={chatBusy}
             />
-            <button className="primary" onClick={sendChat} disabled={chatBusy || !chatInput.trim()}>
+            <button
+              className="primary"
+              onClick={sendChat}
+              disabled={chatBusy || !chatInput.trim()}
+              style={{ flexShrink: 0, whiteSpace: 'nowrap' }}
+            >
               <Play size={13} aria-hidden /> 전송
             </button>
           </div>
@@ -334,14 +339,25 @@ export default function LightragPage() {
               }}
               placeholder="검색어 (예: 아미코스가 공급한 원료)"
               aria-label="청크 검색어"
-              style={{ flex: 1 }}
+              style={{ flex: 1, minWidth: 0 }}
               disabled={rawBusy}
             />
-            <select value={rawMode} onChange={(e) => setRawMode(e.target.value)} aria-label="청크 검색 모드">
+            {/* globals의 select width:100%가 flex 줄에서 폭을 다 먹는다 — 고정 폭으로 */}
+            <select
+              value={rawMode}
+              onChange={(e) => setRawMode(e.target.value)}
+              aria-label="청크 검색 모드"
+              style={{ width: 110, flexShrink: 0 }}
+            >
               <option value="naive">naive</option>
               <option value="hybrid">hybrid</option>
             </select>
-            <button className="primary" onClick={runRaw} disabled={rawBusy || !rawQuery.trim()}>
+            <button
+              className="primary"
+              onClick={runRaw}
+              disabled={rawBusy || !rawQuery.trim()}
+              style={{ flexShrink: 0, whiteSpace: 'nowrap' }}
+            >
               <Play size={13} aria-hidden /> {rawBusy ? '검색 중…' : '검색'}
             </button>
           </div>
