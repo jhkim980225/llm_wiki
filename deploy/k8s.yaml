@@ -164,7 +164,9 @@ spec:
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: lightrag-data
+  # v2: 임베딩 768→1536 전환으로 새 볼륨 (2026-08-31). 구 lightrag-data는
+  # 수동 삭제 대상 — kubectl delete pvc lightrag-data -n jh-wiki-graph
+  name: lightrag-data-v2
   namespace: jh-wiki-graph
 spec:
   accessModes: [ReadWriteOnce]
@@ -188,7 +190,9 @@ spec:
     spec:
       containers:
         - name: lightrag
-          image: ghcr.io/hkuds/lightrag:latest
+          # 2026-08-31 납품 강화: latest → digest 고정 (재시작 시 버전 널뛰기 차단).
+          # 올릴 때는 새 digest를 명시적으로 갱신한다. core 1.5.6 시점 digest.
+          image: ghcr.io/hkuds/lightrag@sha256:ab23a9c83a735901b18c8960b6b482b602d5b6291abb7e07c5776f7bb2da504e
           ports: [{ containerPort: 9621 }]
           env:
             - { name: LLM_BINDING, value: openai }
@@ -197,15 +201,23 @@ spec:
             - name: LLM_BINDING_API_KEY
               valueFrom:
                 secretKeyRef: { name: wiki-graph-llm, key: LLM_API_KEY }
-            - { name: EMBEDDING_BINDING, value: ollama }
-            - { name: EMBEDDING_BINDING_HOST, value: "http://192.168.0.152:11434" }
-            - { name: EMBEDDING_MODEL, value: embeddinggemma }
-            - { name: EMBEDDING_DIM, value: "768" }
+            # 2026-08-31 납품 강화: 사내 Ollama(직렬, 동시 투입 시 halt 사고 3회) →
+            # OpenAI 임베딩(병렬 안전, ~$0.02/M). 외부 LLM 허용 조건 확인받음.
+            # 차원 768→1536 변경이라 전환 시 저장소 초기화 + 전량 재색인함.
+            - { name: EMBEDDING_BINDING, value: openai }
+            - { name: EMBEDDING_BINDING_HOST, value: "https://api.openai.com/v1" }
+            - { name: EMBEDDING_MODEL, value: text-embedding-3-small }
+            - { name: EMBEDDING_DIM, value: "1536" }
+            - name: EMBEDDING_BINDING_API_KEY
+              valueFrom:
+                secretKeyRef: { name: wiki-graph-llm, key: LLM_API_KEY }
             # 2026-08-29: 미설정 시 기본값(English)이라 한국어 원문에서도 개체가
             # 영어로 뽑혔다(Seongjin 등). 당시 emptyDir이라 전량 재색인으로 반영.
             - { name: SUMMARY_LANGUAGE, value: Korean }
-            - { name: MAX_ASYNC_LLM, value: "2" }
-            - { name: MAX_PARALLEL_INSERT, value: "1" }
+            # 2026-08-31 납품 강화: 2/1(PoC 안전핀) → 8/4. 임베딩이 병렬 안전(OpenAI)해져
+            # 동시 색인이 가능해졌다. LUNA API는 이 정도 병렬을 문제없이 받는다.
+            - { name: MAX_ASYNC_LLM, value: "8" }
+            - { name: MAX_PARALLEL_INSERT, value: "4" }
             # 사내망 NodePort 노출이라 키만 건다. X-API-Key 헤더.
             - { name: LIGHTRAG_API_KEY, value: lightrag-poc-sj-2026 }
             - { name: WORKING_DIR, value: /data }
@@ -221,7 +233,7 @@ spec:
       volumes:
         - name: data
           persistentVolumeClaim:
-            claimName: lightrag-data
+            claimName: lightrag-data-v2
 ---
 apiVersion: v1
 kind: Service
