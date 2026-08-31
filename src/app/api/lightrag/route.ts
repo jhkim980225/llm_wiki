@@ -82,14 +82,16 @@ export async function POST(req: Request) {
   const base = await guard()
   if (base instanceof Response) return base
 
-  const { query, mode } = await req.json().catch(() => ({}))
+  const { query, mode, raw } = await req.json().catch(() => ({}))
   if (typeof query !== 'string' || !query.trim() || query.length > 2000) {
     return Response.json({ error: '질문이 비었거나 너무 깁니다' }, { status: 400 })
   }
   if (!MODES.has(mode)) return Response.json({ error: `mode는 ${[...MODES].join('·')} 중 하나` }, { status: 400 })
 
   const t0 = Date.now()
-  const upstream = await fetch(`${base}/query`, {
+  // raw=true → /query/data: LLM 답변 생성 없이 검색 원자료(청크·개체·관계)만.
+  // 청킹·검색 품질을 눈으로 확인하는 용도라 비용이 거의 없다.
+  const upstream = await fetch(`${base}${raw === true ? '/query/data' : '/query'}`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -104,6 +106,21 @@ export async function POST(req: Request) {
   const body = await upstream.json().catch(() => null)
   if (!upstream.ok || !body) {
     return Response.json({ error: `LightRAG ${upstream.status}` }, { status: 502 })
+  }
+  if (raw === true) {
+    const d = body.data ?? {}
+    return Response.json({
+      chunks: (Array.isArray(d.chunks) ? d.chunks : []).map(
+        (c: { chunk_id?: string; file_path?: string; content?: string }) => ({
+          id: String(c.chunk_id ?? ''),
+          doc: String(c.file_path ?? ''),
+          content: String(c.content ?? ''),
+        }),
+      ),
+      entities: Array.isArray(d.entities) ? d.entities : [],
+      relationships: Array.isArray(d.relationships) ? d.relationships : [],
+      durationMs: Date.now() - t0,
+    })
   }
   // references: 답변 근거 문서 목록 [{reference_id, file_path}] — 정합성 확인에 쓴다
   const references = Array.isArray(body.references)

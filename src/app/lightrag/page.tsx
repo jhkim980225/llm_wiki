@@ -23,6 +23,8 @@ type Status = {
 type Doc = { id: string; status: string; length: number | null; updatedAt: string | null; error: string | null }
 type Ref = { id: string; doc: string }
 type ChatMsg = { role: 'user' | 'ai'; text: string; refs?: Ref[]; tookMs?: number }
+type Chunk = { id: string; doc: string; content: string }
+type RawResult = { chunks: Chunk[]; entities: unknown[]; relationships: unknown[]; durationMs: number }
 
 const STATUS_ORDER: Record<string, number> = { failed: 0, processing: 1, pending: 2, processed: 3 }
 
@@ -49,6 +51,12 @@ export default function LightragPage() {
   const [chat, setChat] = useState<ChatMsg[]>([])
   const [chatInput, setChatInput] = useState('')
   const [chatBusy, setChatBusy] = useState(false)
+
+  const [rawQuery, setRawQuery] = useState('')
+  const [rawMode, setRawMode] = useState('naive')
+  const [rawResult, setRawResult] = useState<RawResult | null>(null)
+  const [rawError, setRawError] = useState<string | null>(null)
+  const [rawBusy, setRawBusy] = useState(false)
 
   const [status, setStatus] = useState<Status | null>(null)
   const [docs, setDocs] = useState<Doc[] | null>(null)
@@ -132,6 +140,29 @@ export default function LightragPage() {
       setChat((c) => [...c, { role: 'ai', text: '오류: 요청 실패 — 네트워크를 확인하세요' }])
     } finally {
       setChatBusy(false)
+    }
+  }
+
+  // 청크 검색 — /query/data(raw): LLM 답변 없이 검색에 잡힌 청크·개체·관계 원자료만
+  const runRaw = async () => {
+    const q = rawQuery.trim()
+    if (!q || rawBusy) return
+    setRawBusy(true)
+    setRawError(null)
+    setRawResult(null)
+    try {
+      const res = await fetch('/api/lightrag', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: q, mode: rawMode, raw: true }),
+      })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) setRawError(body.error ?? `HTTP ${res.status}`)
+      else setRawResult(body)
+    } catch {
+      setRawError('요청 실패 — 네트워크를 확인하세요')
+    } finally {
+      setRawBusy(false)
     }
   }
 
@@ -287,6 +318,54 @@ export default function LightragPage() {
               <Play size={13} aria-hidden /> 전송
             </button>
           </div>
+
+          {/* 청크 검색 — 검색 원자료 확인 (LLM 답변 없음) */}
+          <h2 style={{ fontSize: 18, fontWeight: 650, marginTop: 40 }}>청크 검색</h2>
+          <p className="meta">
+            질문에 어떤 청크(문서 조각)가 검색되는지 원자료로 확인합니다 — LLM 답변 생성 없이 검색만 하므로 비용이 거의 없습니다.
+            naive는 벡터 검색만, hybrid는 그래프(개체·관계)까지.
+          </p>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <input
+              value={rawQuery}
+              onChange={(e) => setRawQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') runRaw()
+              }}
+              placeholder="검색어 (예: 아미코스가 공급한 원료)"
+              aria-label="청크 검색어"
+              style={{ flex: 1 }}
+              disabled={rawBusy}
+            />
+            <select value={rawMode} onChange={(e) => setRawMode(e.target.value)} aria-label="청크 검색 모드">
+              <option value="naive">naive</option>
+              <option value="hybrid">hybrid</option>
+            </select>
+            <button className="primary" onClick={runRaw} disabled={rawBusy || !rawQuery.trim()}>
+              <Play size={13} aria-hidden /> {rawBusy ? '검색 중…' : '검색'}
+            </button>
+          </div>
+          {rawError && <p className="meta" style={{ color: 'var(--danger)', marginTop: 10 }}>{rawError}</p>}
+          {rawResult && (
+            <div style={{ marginTop: 12 }}>
+              <p className="meta">
+                청크 {rawResult.chunks.length}개 · 개체 {rawResult.entities.length} · 관계 {rawResult.relationships.length} ·{' '}
+                {(rawResult.durationMs / 1000).toFixed(1)}초
+              </p>
+              <div style={{ maxHeight: 420, overflowY: 'auto', display: 'grid', gap: 10, marginTop: 8 }}>
+                {rawResult.chunks.map((c) => (
+                  <div key={c.id} style={{ border: '1px solid var(--line)', borderRadius: 8, padding: '10px 12px', background: 'var(--panel)' }}>
+                    <p className="meta" style={{ fontFamily: 'var(--font-mono)', fontSize: 11, marginBottom: 6 }}>
+                      {c.doc} · {c.id}
+                    </p>
+                    <pre style={{ whiteSpace: 'pre-wrap', fontSize: 12, lineHeight: 1.5, color: 'var(--text-body)', margin: 0, fontFamily: 'inherit' }}>
+                      {c.content}
+                    </pre>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* 색인 문서 */}
           <h2 style={{ fontSize: 18, fontWeight: 650, marginTop: 40 }}>
