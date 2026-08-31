@@ -44,6 +44,14 @@ spec:
     metadata:
       labels: { app: postgres }
     spec:
+      # 2026-08-31: fedaworker11이 만성 플래핑(파드 재시작 102회, kubelet 단절)으로
+      # DB가 통째로 죽는 장애가 났다. 노드 안정화 확인 전까지 배제한다.
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - { key: kubernetes.io/hostname, operator: NotIn, values: [fedaworker11] }
       containers:
         - name: postgres
           # 의미검색용 pgvector 포함. postgres:16-alpine에서 교체 시 libc(musl→glibc)
